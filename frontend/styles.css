@@ -42,9 +42,76 @@ body {
   background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .25);
   padding: 4px 10px; border-radius: 999px; color: #fff;
 }
+.topnav { display: flex; gap: 4px; margin-left: 8px; }
+.nav-link {
+  color: rgba(255, 255, 255, .85); text-decoration: none;
+  font-size: .85rem; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+}
+.nav-link:hover { background: rgba(255, 255, 255, .12); }
+.nav-link.active { background: rgba(255, 255, 255, .2); color: #fff; }
 .hidden { display: none !important; }
 
 .wrap { max-width: 640px; margin: 0 auto; padding: 22px 16px 60px; }
+.wrap.wide { max-width: 960px; }
+
+.section-title { font-size: 1.05rem; color: var(--green-900); margin-bottom: 14px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-head .section-title { margin-bottom: 0; }
+
+.ear-form { display: flex; flex-direction: column; gap: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.field input[type="text"], .field select {
+  border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 12px; font-size: .95rem;
+  background: #fff; color: var(--ink);
+}
+.id-row { display: flex; gap: 8px; }
+.id-row input { flex: 1; }
+
+.view-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.view-slot {
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px;
+  background: var(--bg);
+}
+.slot-label { font-weight: 700; font-size: .82rem; color: var(--green-700); }
+.view-slot input[type="file"] { font-size: .75rem; color: var(--muted); }
+.slot-status { font-size: .72rem; font-weight: 600; color: var(--muted); min-height: 1em; }
+.slot-status.ok { color: var(--green-700); }
+
+button.ghost {
+  border: 1px solid #d1d5db; background: #fff; color: var(--green-700);
+  border-radius: 999px; padding: 8px 14px; font-size: .82rem; font-weight: 700; cursor: pointer;
+}
+button.ghost:hover { background: var(--green-100); }
+button.ghost:disabled { opacity: .6; cursor: wait; }
+
+.stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+}
+.problems { margin-top: 16px; }
+.problems h3 { font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+
+.table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.table th {
+  text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); padding: 8px 10px; border-bottom: 2px solid var(--green-100);
+}
+.table td { padding: 8px 10px; border-bottom: 1px solid #eef2ee; }
+.table .ok { color: var(--green-700); font-weight: 700; }
+.table .warn { color: #8a5a00; font-weight: 700; }
+.table .id-cell { font-weight: 800; color: var(--green-900); }
+
+.gt-input {
+  width: 64px; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 8px; font-size: .85rem;
+}
+.gt-grade { font-weight: 800; color: var(--green-900); }
+
+@media (max-width: 620px) {
+  .form-row { grid-template-columns: 1fr; }
+  .view-slots { grid-template-columns: 1fr; }
+}
 
 .hero h1 { font-size: 1.7rem; color: var(--green, #123d) ; color: var(--green-900, #1d4332); line-height: 1.2; }
 .hero p { color: var(--muted); margin-top: 8px; }

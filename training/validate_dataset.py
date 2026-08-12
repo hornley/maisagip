@@ -12,6 +12,45 @@ def ear_id(path: Path):
     return _EAR_SUFFIX.sub("", path.stem)
 
 
+def view_number(path: Path) -> int:
+    match = _EAR_SUFFIX.search(path.stem)
+    return int(match.group(0)[2:]) if match else 0
+
+
+def check_label_lines(label_name, lines, problems):
+    """Validate one YOLO label file's content. Appends to `problems`; returns
+    True if a mandatory class 0 (corn_ear) box was found."""
+    has_ear = False
+    for line_no, line in enumerate(lines, 1):
+        parts = line.split()
+        if len(parts) != 5:
+            problems.append(f"{label_name}:{line_no} expected 5 fields, got {len(parts)}")
+            continue
+        cls, x, y, w, h = parts
+        try:
+            cls_idx = int(cls)
+        except ValueError:
+            problems.append(f"{label_name}:{line_no} class not an integer: {cls}")
+            continue
+        if not 0 <= cls_idx < len(config.DEFECT_CLASSES):
+            problems.append(
+                f"{label_name}:{line_no} class {cls_idx} out of range 0..{len(config.DEFECT_CLASSES) - 1}"
+            )
+        for name, value in (("x", x), ("y", y), ("w", w), ("h", h)):
+            try:
+                num = float(value)
+            except ValueError:
+                problems.append(f"{label_name}:{line_no} coordinate {name} not numeric: {value}")
+                break
+            if not 0.0 <= num <= 1.0:
+                problems.append(f"{label_name}:{line_no} coordinate {name} out of [0,1]: {num}")
+        if cls_idx == 0:
+            has_ear = True
+    if not has_ear:
+        problems.append(f"{label_name}: missing required class 0 (corn_ear) box")
+    return has_ear
+
+
 def validate_classifier(root, problems):
     root = Path(root)
     if not root.exists():
@@ -50,34 +89,7 @@ def validate_detector(img_root, lbl_root, problems):
         except OSError as exc:
             problems.append(f"unreadable label {label.name}: {exc}")
             continue
-        has_ear = False
-        for line_no, line in enumerate(lines, 1):
-            parts = line.split()
-            if len(parts) != 5:
-                problems.append(f"{label.name}:{line_no} expected 5 fields, got {len(parts)}")
-                continue
-            cls, x, y, w, h = parts
-            try:
-                cls_idx = int(cls)
-            except ValueError:
-                problems.append(f"{label.name}:{line_no} class not an integer: {cls}")
-                continue
-            if not 0 <= cls_idx < len(config.DEFECT_CLASSES):
-                problems.append(
-                    f"{label.name}:{line_no} class {cls_idx} out of range 0..{len(config.DEFECT_CLASSES) - 1}"
-                )
-            for name, value in (("x", x), ("y", y), ("w", w), ("h", h)):
-                try:
-                    num = float(value)
-                except ValueError:
-                    problems.append(f"{label.name}:{line_no} coordinate {name} not numeric: {value}")
-                    break
-                if not 0.0 <= num <= 1.0:
-                    problems.append(f"{label.name}:{line_no} coordinate {name} out of [0,1]: {num}")
-            if cls_idx == 0:
-                has_ear = True
-        if not has_ear:
-            problems.append(f"{label.name}: missing required class 0 (corn_ear) box")
+        check_label_lines(label.name, lines, problems)
 
     for key, info in ears.items():
         if info["images"] != info["labels"]:

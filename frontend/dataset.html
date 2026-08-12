@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maisagip — Dataset</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🌽</span>
+      <span class="brand-name">Maisagip</span>
+    </div>
+    <span class="tagline">Dataset builder</span>
+    <nav class="topnav">
+      <a href="index.html" class="nav-link">Inspect</a>
+      <a href="dataset.html" class="nav-link active">Dataset</a>
+    </nav>
+  </header>
+
+  <main class="wrap wide">
+    <section class="panel upload">
+      <h2 class="section-title">Import an ear</h2>
+      <form id="ear-form" class="ear-form">
+        <div class="form-row">
+          <div class="field">
+            <label for="ear-id">Ear ID</label>
+            <div class="id-row">
+              <input id="ear-id" name="ear_id" type="text" value="auto" placeholder="auto" list="ear-options">
+              <button type="button" id="next-ear" class="ghost">next free</button>
+            </div>
+            <datalist id="ear-options"></datalist>
+          </div>
+          <div class="field">
+            <label for="variety">Variety</label>
+            <select id="variety" name="variety">
+              <option value="white_corn">white_corn</option>
+              <option value="yellow_sweet_corn" selected>yellow_sweet_corn</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="view-slots" id="view-slots">
+          <div class="view-slot" data-view="1">
+            <span class="slot-label">v1 · 0°</span>
+            <input type="file" name="view1_image" accept="image/*">
+            <input type="file" name="view1_label" accept=".txt">
+            <span class="slot-status"></span>
+          </div>
+          <div class="view-slot" data-view="2">
+            <span class="slot-label">v2 · 90°</span>
+            <input type="file" name="view2_image" accept="image/*">
+            <input type="file" name="view2_label" accept=".txt">
+            <span class="slot-status"></span>
+          </div>
+          <div class="view-slot" data-view="3">
+            <span class="slot-label">v3 · 180°</span>
+            <input type="file" name="view3_image" accept="image/*">
+            <input type="file" name="view3_label" accept=".txt">
+            <span class="slot-status"></span>
+          </div>
+          <div class="view-slot" data-view="4">
+            <span class="slot-label">v4 · 270°</span>
+            <input type="file" name="view4_image" accept="image/*">
+            <input type="file" name="view4_label" accept=".txt">
+            <span class="slot-status"></span>
+          </div>
+        </div>
+
+        <button type="submit" id="import-btn" class="primary">Import ear</button>
+        <span id="import-status" class="status"></span>
+      </form>
+    </section>
+
+    <section id="error" class="alert error hidden"></section>
+
+    <section class="panel">
+      <h2 class="section-title">Overview</h2>
+      <div id="stats" class="stat-grid"></div>
+      <div id="problems" class="problems hidden">
+        <h3>Validation problems</h3>
+        <ul id="problem-list" class="reasons"></ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2 class="section-title">Ears</h2>
+        <button type="button" id="validate-btn" class="ghost">Run validation</button>
+      </div>
+      <table class="table" id="ears-table">
+        <thead>
+          <tr>
+            <th>Ear</th>
+            <th>Variety</th>
+            <th>Views</th>
+            <th>Labels</th>
+            <th>Ground truth</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">Ground truth</h2>
+      <table class="table" id="gt-table">
+        <thead>
+          <tr>
+            <th>Ear</th>
+            <th>Variety</th>
+            <th>Coverage</th>
+            <th>Mold</th>
+            <th>Insect</th>
+            <th>Missing</th>
+            <th>Other</th>
+            <th>Grade</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="dataset.js"></script>
+</body>
+</html>

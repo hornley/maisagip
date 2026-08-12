@@ -5,10 +5,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, models
+from .dataset_api import router as dataset_router
 from .pipeline import inspect_ear
 from .report import REPORTS
 
 app = FastAPI(title="Maisagip", version="0.2.0")
+app.include_router(dataset_router)
 
 
 @app.post("/inspect")
