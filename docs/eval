@@ -1,0 +1,11 @@
+0  corn_ear
+1  mold
+2  insect_damage
+3  discoloration
+4  deformity
+5  missing_kernels
+
+Extra     coverage == 0
+Class I   coverage <  0.05
+Class II  coverage <  0.10
+Reject    coverage >= 0.10

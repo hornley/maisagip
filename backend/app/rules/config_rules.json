@@ -1,0 +1,48 @@
+{
+  "grade_order": ["ExtraClass", "ClassI", "ClassII"],
+  "grades": {
+    "ExtraClass": {
+      "label": "Extra Class",
+      "coverage_at_most": 0.0
+    },
+    "ClassI": {
+      "label": "Class I",
+      "coverage_less_than": 0.05
+    },
+    "ClassII": {
+      "label": "Class II",
+      "coverage_less_than": 0.10
+    }
+  },
+  "below_grade_label": "Below Class II",
+  "utilization": [
+    {
+      "condition": "coverage_ge",
+      "value": 0.10,
+      "recommend": "reject",
+      "reason": "Defect coverage at or above 10%: reject for commercial distribution."
+    },
+    {
+      "condition": "any_severe",
+      "recommend": "animal_feed",
+      "reason": "Mold or insect damage present: not suitable for human consumption."
+    },
+    {
+      "condition": "coverage_lt",
+      "value": 0.05,
+      "recommend": "human_consumption",
+      "reason": "Defect coverage below 5%: suitable for fresh human consumption."
+    },
+    {
+      "condition": "coverage_lt",
+      "value": 0.10,
+      "recommend": "food_processing",
+      "reason": "Defect coverage below 10% (Class II): suitable for food processing."
+    },
+    {
+      "condition": "always",
+      "recommend": "reject",
+      "reason": "No applicable utilization rule."
+    }
+  ]
+}

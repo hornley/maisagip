@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maisagip — Corn Quality Grading</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🌽</span>
+      <span class="brand-name">Maisagip</span>
+    </div>
+    <span class="tagline">Post-harvest corn quality inspection</span>
+    <span id="mode-chip" class="mode-chip hidden"></span>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Grade your harvested corn in seconds.</h1>
+      <p>Upload one photo — or all 4 roll views of an ear (0°/90°/180°/270°) — and Maisagip classifies the variety, merges defects across views, and recommends the right use for the cob.</p>
+    </section>
+
+    <section class="panel upload">
+      <label for="file-input" class="dropzone" id="dropzone">
+        <input id="file-input" type="file" accept="image/*" multiple hidden>
+        <span class="dz-icon">📷</span>
+        <span class="dz-text">Tap to choose or drag images here</span>
+        <span class="dz-hint">1 photo, or 4 roll views of the same ear · JPG/PNG</span>
+      </label>
+      <div id="file-list" class="file-list hidden"></div>
+      <div id="preview-wrap" class="preview hidden">
+        <div id="previews" class="previews"></div>
+        <button id="inspect-btn" class="primary">Inspect ear</button>
+        <span id="dz-status" class="status"></span>
+      </div>
+    </section>
+
+    <section id="error" class="alert error hidden"></section>
+
+    <section id="result" class="result hidden">
+      <div id="warning" class="alert warning hidden"></div>
+
+      <div class="card annotated-card">
+        <div class="annotated">
+          <img id="annotated" alt="annotated inspection image">
+        </div>
+        <div class="annotated-head">
+          <div class="variety-badge" id="variety-badge"><span id="variety-label"></span></div>
+          <div class="conf" id="overall-conf"></div>
+          <div class="date" id="inspection-date"></div>
+        </div>
+      </div>
+
+      <div class="card grade-card">
+        <div class="grade-stamp">
+          <span class="grade-label">Assigned grade</span>
+          <span class="grade-value" id="grade-value"></span>
+        </div>
+        <div class="coverage-line">
+          <span class="coverage-label">Merged defect coverage</span>
+          <span class="coverage-value" id="coverage-value"></span>
+          <div class="bar"><div class="bar-fill" id="coverage-bar"></div></div>
+        </div>
+        <ul id="grade-reasons" class="reasons"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Merged defects (deduplicated across views)</h2>
+        <div id="defects" class="chips"></div>
+      </div>
+
+      <div class="card grid-2">
+        <div class="stat">
+          <span class="stat-label">Ear size</span>
+          <span class="stat-value" id="ear-size"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Kernel completeness</span>
+          <span class="stat-value" id="completeness"></span>
+          <div class="bar"><div class="bar-fill" id="completeness-bar"></div></div>
+        </div>
+      </div>
+
+      <div class="card util-card">
+        <span class="util-label">Recommended use</span>
+        <span class="util-value" id="util-value"></span>
+        <p id="util-reason" class="util-reason"></p>
+      </div>
+
+      <div class="card">
+        <h2>Views inspected</h2>
+        <div id="views" class="view-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
