@@ -36,7 +36,7 @@ maisagip/
 
 ### 1. Model layer (`models.py`)
 - **Classifier**: `EfficientNetV2-S` (torchvision, 2 output classes: `white_corn`, `yellow_sweet_corn`). Weights expected at `data/weights/efficientnetv2_s_corn.pt`.
-- **Detector**: `Ultralytics YOLOv11n` with 6 classes: `corn_ear`, `mold`, `insect_damage`, `discoloration`, `deformity`, `missing_kernels`. Weights expected at `data/weights/corn_yolov11n.pt`.
+- **Detector**: `Ultralytics YOLOv11n` with 7 classes: `corn_ear`, `mold`, `insect_damage`, `discoloration`, `deformity`, `missing_kernels`, `ear_decay`. Weights expected at `data/weights/corn_yolov11n.pt`.
 - **Demo fallback**: if weights are absent OR torch/ultralytics are not importable, a deterministic heuristic provider returns plausible outputs so the whole web flow is demonstrable immediately. A `mode` field on the report records which provider ran.
 
 ### 2. Pipeline data flow (`pipeline.py`)
@@ -98,7 +98,7 @@ The numeric thresholds in `config_rules.json` are a faithful-but-provisional enc
 
 ## Decisions agreed with the thesis authors
 - **Capture:** turntable rig, 4 roll views per ear (0°/90°/180°/270°), `ear{id}_v{1..4}` filenames. The resting contact band is never photographed → accepted as a documented delimitation.
-- **Annotation:** box every visible defect in every view where it appears (same class per physical spot); box whole-ear defects (deformity, discoloration) with ear-sized boxes; one `corn_ear` box per view. YOLO export, class order fixed to `corn_ear, mold, insect_damage, discoloration, deformity, missing_kernels`.
+- **Annotation:** box every visible defect in every view where it appears (same class per physical spot); box whole-ear defects (deformity, discoloration, ear_decay) with ear-sized boxes where appropriate; one `corn_ear` box per view. YOLO export, class order fixed to `corn_ear, mold, insect_damage, discoloration, deformity, missing_kernels, ear_decay`.
 - **Grading is extent-based (authoritative PNS numbers):** Extra = 0% coverage, Class I < 5%, Class II < 10%, Reject ≥ 10%. Utilization: coverage ≥ 10% → reject; any mold/insect → animal feed; < 5% → human consumption; else food processing.
 
 ## New/changed components

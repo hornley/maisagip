@@ -2,6 +2,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
+ORIGINALS_DIR = DATA_DIR / "raw" / "originals"
 WEIGHTS_DIR = DATA_DIR / "weights"
 REPORTS_DIR = DATA_DIR / "reports"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
@@ -10,7 +11,15 @@ CLASSIFIER_WEIGHTS = WEIGHTS_DIR / "efficientnetv2_s_corn.pt"
 DETECTOR_WEIGHTS = WEIGHTS_DIR / "corn_yolov11n.pt"
 
 VARIETY_CLASSES = ["white_corn", "yellow_sweet_corn"]
-DEFECT_CLASSES = ["corn_ear", "mold", "insect_damage", "discoloration", "deformity", "missing_kernels"]
+DEFECT_CLASSES = [
+    "corn_ear",
+    "mold",
+    "insect_damage",
+    "discoloration",
+    "deformity",
+    "missing_kernels",
+    "ear_decay",
+]
 
 IMAGE_TARGET_SIZE = 448
 DETECTOR_IMAGE_SIZE = 640

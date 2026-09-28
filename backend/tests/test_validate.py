@@ -24,6 +24,19 @@ def test_validate_detector_accepts_valid_set(tmp_path):
     assert issues == []
 
 
+def test_validate_detector_accepts_ear_decay_class(tmp_path):
+    img_root = tmp_path / "images"
+    lbl_root = tmp_path / "labels"
+    img_root.mkdir(); lbl_root.mkdir()
+    (img_root / "ear001_v1.jpg").write_bytes(b"x")
+    (lbl_root / "ear001_v1.txt").write_text("0 0.5 0.5 0.8 0.8\n6 0.3 0.3 0.1 0.1\n")
+    issues = []
+
+    validate_detector(img_root, lbl_root, issues)
+
+    assert issues == []
+
+
 def test_validate_detector_flags_missing_label(tmp_path):
     img_root = tmp_path / "images"
     lbl_root = tmp_path / "labels"
@@ -54,3 +67,30 @@ def test_validate_detector_flags_missing_corn_ear_box(tmp_path):
     issues = []
     validate_detector(img_root, lbl_root, issues)
     assert any("required class 0" in issue for issue in issues)
+
+
+def test_validate_detector_rejects_zero_size_and_outside_boxes(tmp_path):
+    img_root = tmp_path / "images"
+    lbl_root = tmp_path / "labels"
+    img_root.mkdir(); lbl_root.mkdir()
+    (img_root / "ear001_v1.jpg").write_bytes(b"x")
+    (lbl_root / "ear001_v1.txt").write_text("0 0.1 0.1 0 0.2\n1 0.95 0.5 0.2 0.2\n")
+    issues = []
+
+    validate_detector(img_root, lbl_root, issues)
+
+    assert any("greater than zero" in issue for issue in issues)
+    assert any("outside the image horizontally" in issue for issue in issues)
+
+
+def test_validate_detector_accepts_rounding_at_image_edge(tmp_path):
+    img_root = tmp_path / "images"
+    lbl_root = tmp_path / "labels"
+    img_root.mkdir(); lbl_root.mkdir()
+    (img_root / "ear001_v1.jpg").write_bytes(b"x")
+    (lbl_root / "ear001_v1.txt").write_text("0 0.4909 0.5314 0.3643 0.9373\n")
+    issues = []
+
+    validate_detector(img_root, lbl_root, issues)
+
+    assert issues == []

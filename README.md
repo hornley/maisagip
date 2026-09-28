@@ -12,7 +12,7 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload --port 8000
 ```
 
-Open http://localhost:8000, upload one photo — or all 4 roll views of an ear — and inspect. `GET /health` shows which providers are active.
+Open http://localhost:8000, upload one photo — or all 4 roll views of an ear — and inspect. HEIC, HEIF, JPG, JPEG, and PNG inputs are accepted. `GET /health` shows which providers are active.
 
 ## Architecture
 
@@ -64,19 +64,36 @@ Utilization overrides: coverage ≥ 10% → reject; any mold/insect damage → a
 
 Capture protocol (per ear): fixed camera + turntable; roll the ear 90° between shots → `ear001_v1.jpg … ear001_v4.jpg`. The resting contact band on the display is never visible — accepted as a documented delimitation.
 
+HEIC/HEIF inputs are decoded with `pillow-heif`, orientation-corrected, converted to RGB, and stored for training as canonical JPEGs. The untouched upload is archived under `data/raw/originals/` with its dataset-relative path. Install this support with the normal dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+To migrate HEIC/HEIF files already in the raw dataset, run:
+
+```bash
+python -m training.normalize_heic_dataset --input-root data/raw --originals-root data/raw/originals
+```
+
+The migration never removes HEIC/HEIF files or overwrites an existing JPEG. It requires POSIX descriptor-relative no-follow filesystem I/O and fails closed on platforms without it. Corrupt files are reported and must be reviewed before training.
+
 **Detector class order (fixed — matches `config.DEFECT_CLASSES`):**
 
 ```
 0  corn_ear      3  discoloration
 1  mold          4  deformity
 2  insect_damage 5  missing_kernels
+                       6  ear_decay
 ```
 
 Annotation protocol:
 - One `corn_ear` box per view (drives size/completeness).
 - Box every visible defect, in **every view where it appears**, same class per physical spot.
-- Whole-ear defects (deformity, discoloration) get ear-sized boxes — coverage % handles them.
+- Deformity and extensive discoloration get ear-sized boxes — coverage % handles them.
 - YOLO export: `class x y w h` (normalized), filename = image stem.
+
+The Dataset page includes a local annotation desk. Click **Draw boxes** for an imported ear, choose a class, drag boxes over the processed image, and save each view. Existing YOLO labels can be edited in place; the tool requires a `corn_ear` box before saving. To replace an uploaded `.txt`, expand **Annotate**, choose **replace .txt**, and click **Save labels**.
 
 ```bash
 data/raw/classifier/{white_corn,yellow_sweet_corn}/ear001_v1.jpg ...
@@ -88,13 +105,72 @@ Validate → split → train:
 
 ```bash
 python -m training.validate_dataset
-python -m training.make_dataset_split        # leak-free per-ear 80/10/10 splits
+python -m training.make_dataset_split --seed 42  # leak-free ear-level 80/10/10 split
 pip install -r requirements-ml.txt
 python -m training.train_classifier --epochs 30
 python -m training.train_detector --epochs 100
 ```
 
-Weights land in `data/weights/` and the app auto-switches to real mode.
+The existing single-model detector command uses `yolo11n.pt` by default, writes its
+dataset definition to `data/detector/data.yaml`, and copies only its best checkpoint
+to `data/weights/corn_yolov11n.pt`. That is the production training path; comparison
+runs do not change or populate `data/weights/`. The app auto-switches to real mode
+when production weights are present.
+
+### YOLO comparison experiment
+
+The comparison catalog is exactly:
+
+| Family | Models | Training implementation |
+| --- | --- | --- |
+| YOLOv7 | `yolov7-tiny`, `yolov7`, `yolov7x` | Official YOLOv7 checkout, using its native `train.py` and `test.py` |
+| YOLOv8/11 | `yolov8n`, `yolov8s`, `yolov8m`, `yolo11s` | Ultralytics |
+
+Prepare the shared detector split and run all seven models with:
+
+```bash
+python -m training.validate_dataset
+python -m training.make_dataset_split --seed 42
+python -m training.yolo_comparison \
+  --epochs 100 --batch 16 --imgsz 640 --seed 42 \
+  --yolov7-root /path/to/yolov7
+```
+
+The split is made at ear level: all four views of an ear stay together in train,
+validation, or test, so the models use the same leak-free split. Results and
+comparison checkpoints are isolated under `data/comparisons/yolo/`. The runner may
+regenerate the shared `data/detector/data.yaml`, but it does not modify the source
+detector images or labels and never copies comparison checkpoints into production
+`data/weights/`.
+
+Use `--dry-run` to inspect every planned command without importing the heavy ML
+packages or starting training:
+
+```bash
+python -m training.yolo_comparison \
+  --seed 42 --yolov7-root /path/to/yolov7 --dry-run
+```
+
+To run only one model, use the comma-separated `--models` filter. Ultralytics-only
+runs do not need a YOLOv7 checkout:
+
+```bash
+python -m training.yolo_comparison \
+  --models yolo11s --epochs 100 --batch 16 --imgsz 640 --seed 42
+```
+
+For YOLOv7, `--yolov7-python /path/to/yolov7-venv/bin/python` selects the Python
+environment for the native scripts, and `--yolov7-weights-dir /path/to/weights`
+selects local files such as `yolov7x.pt` instead of relying on the native download.
+The official YOLOv7 `train.py` does not accept `--seed`. The runner records the
+requested seed and `PYTHONHASHSEED` in run metadata, warns that YOLOv7's internal
+seed remains hardcoded, and treats those results as exploratory rather than claiming
+identical internal seeding across all models.
+
+The current dataset contains only 11 ears / 44 views. These runs are therefore
+exploratory comparisons for pipeline development, not reliable or publishable
+benchmarks; conclusions should be revisited after collecting substantially more
+ears.
 
 ## Ground truth & eval
 
