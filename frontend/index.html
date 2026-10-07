@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maisagip — Corn Quality Grading</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -50,6 +50,7 @@
       <div class="card annotated-card">
         <div class="annotated">
           <img id="annotated" alt="annotated inspection image">
+          <div id="annotation-hotspots" class="annotation-hotspots" aria-label="Detected regions"></div>
         </div>
         <div class="annotated-head">
           <div class="variety-badge" id="variety-badge"><span id="variety-label"></span></div>
@@ -101,6 +102,6 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

@@ -6,9 +6,9 @@ from backend.app import config
 from backend.app.pipeline import inspect_ear
 
 GRADE_MAP = {
-    "belowclassii": "Below Class II",
-    "below": "Below Class II",
-    "reject": "Below Class II",
+    "belowclassii": "Reject",
+    "below": "Reject",
+    "reject": "Reject",
     "classi": "Class I",
     "class1": "Class I",
     "classii": "Class II",
@@ -19,7 +19,7 @@ GRADE_MAP = {
 
 def canonical_grade(value):
     if value is None:
-        return "Below Class II"
+        return "Reject"
     return GRADE_MAP.get("".join(str(value).lower().split()), str(value).strip())
 
 

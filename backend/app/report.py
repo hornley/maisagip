@@ -106,6 +106,8 @@ def build_report(per_view, merged, engine_result):
                 "variety": entry["variety"],
                 "defects": entry["detections"],
                 "traits": entry["traits"],
+                "image_width": entry["image"].shape[1],
+                "image_height": entry["image"].shape[0],
                 "image_url": f"/report/{report_id}/views/{idx}/image",
             }
         )

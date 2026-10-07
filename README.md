@@ -47,7 +47,7 @@ Pipeline stages are independent, testable units. Heavy ML stacks (`torch`, `ultr
 | Extra Class | 0% |
 | Class I | < 5% |
 | Class II | < 10% |
-| Below Class II (Reject) | ≥ 10% |
+| Reject | ≥ 10% |
 
 Utilization overrides: coverage ≥ 10% → reject; any mold/insect damage → animal feed (non-human); else < 5% → human consumption; < 10% → food processing. Numbers in the JSON are your authoritative thresholds verbatim, so calibrating later requires zero code changes.
 
