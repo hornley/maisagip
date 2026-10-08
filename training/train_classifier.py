@@ -10,6 +10,45 @@ from torchvision import datasets, models, transforms
 from backend.app import config
 
 
+def validate_classification_split(root, expected_classes=None):
+    """Validate the ImageFolder class mapping and contents before model setup."""
+    root = Path(root)
+    expected_classes = list(expected_classes or config.VARIETY_CLASSES)
+    if expected_classes != ["white_corn", "yellow_sweet_corn"]:
+        raise ValueError(
+            "classifier config must contain exactly "
+            "['white_corn', 'yellow_sweet_corn'] in that order"
+        )
+    if not root.is_dir():
+        raise ValueError(f"classifier split does not exist: {root}")
+
+    class_dirs = sorted(path.name for path in root.iterdir() if path.is_dir())
+    if class_dirs != expected_classes:
+        raise ValueError(
+            f"{root} must contain exactly {expected_classes} class directories "
+            f"in config order; found {class_dirs}"
+        )
+
+    try:
+        dataset = datasets.ImageFolder(root)
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise ValueError(f"{root} has no valid images for every configured class") from exc
+    if dataset.classes != expected_classes or dataset.class_to_idx != {
+        name: index for index, name in enumerate(expected_classes)
+    }:
+        raise ValueError(
+            f"{root} class mapping {dataset.class_to_idx} does not match "
+            f"the configured mapping"
+        )
+    if not dataset.samples:
+        raise ValueError(f"classifier split is empty: {root}")
+    empty_classes = [name for name, index in dataset.class_to_idx.items()
+                     if not any(sample_target == index for _, sample_target in dataset.samples)]
+    if empty_classes:
+        raise ValueError(f"{root} has no valid images for classes: {empty_classes}")
+    return dataset
+
+
 def make_loader(root, target_size, train=False):
     common = [
         transforms.Resize(int(target_size * 1.1)),
@@ -30,6 +69,10 @@ def make_loader(root, target_size, train=False):
     )
 
 
+def should_save_checkpoint(accuracy, best_accuracy):
+    return best_accuracy is None or accuracy > best_accuracy
+
+
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune EfficientNetV2-S for corn variety classification.")
     parser.add_argument("--data-root", default=str(config.DATA_DIR / "classifier"))
@@ -40,6 +83,8 @@ def main():
 
     train_root = Path(args.data_root) / "train"
     val_root = Path(args.data_root) / "val"
+    validate_classification_split(train_root)
+    validate_classification_split(val_root)
     train_loader = make_loader(train_root, config.IMAGE_TARGET_SIZE, train=True)
     val_loader = make_loader(val_root, config.IMAGE_TARGET_SIZE, train=False)
 
@@ -56,7 +101,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
-    best_acc = 0.0
+    best_acc = None
     for epoch in range(args.epochs):
         model.train()
         running = 0.0
@@ -72,7 +117,7 @@ def main():
         acc = evaluate(model, val_loader, device)
         print(f"epoch {epoch + 1}/{args.epochs} train_loss={train_loss:.4f} val_acc={acc:.4f}")
 
-        if acc > best_acc:
+        if should_save_checkpoint(acc, best_acc):
             best_acc = acc
             weights_path = Path(args.save_to)
             weights_path.parent.mkdir(parents=True, exist_ok=True)

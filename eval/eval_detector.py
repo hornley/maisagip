@@ -8,25 +8,25 @@ from backend.app import config
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the corn defect detector (mAP, IoU, latency).")
     parser.add_argument("--weights", default=str(config.DETECTOR_WEIGHTS))
+    parser.add_argument("--data-yaml", default=str(config.DATA_DIR / "detector" / "data.yaml"))
+    parser.add_argument("--test-images", default=str(config.DATA_DIR / "detector" / "images" / "test"))
     parser.add_argument("--imgsz", type=int, default=640)
     args = parser.parse_args()
 
     if not Path(args.weights).exists():
-        print(f"weights not found: {args.weights}")
-        return
+        raise FileNotFoundError(f"weights not found: {args.weights}")
 
     from ultralytics import YOLO
 
     model = YOLO(args.weights)
-    data_yaml = config.DATA_DIR / "detector" / "data.yaml"
-    metrics = model.val(data=str(data_yaml), imgsz=args.imgsz)
+    metrics = model.val(data=args.data_yaml, split="test", imgsz=args.imgsz)
 
     print(f"mAP@0.5        = {metrics.box.map50:.4f}")
     print(f"mAP@0.5:0.95   = {metrics.box.map:.4f}")
     print(f"precision      = {metrics.box.mp:.4f}")
     print(f"recall         = {metrics.box.mr:.4f}")
 
-    test_dir = config.DATA_DIR / "detector" / "images" / "test"
+    test_dir = Path(args.test_images)
     images = sorted(p for p in Path(test_dir).iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"})
     if not images:
         print("no test images for latency measurement")

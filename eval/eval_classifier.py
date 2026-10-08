@@ -20,6 +20,45 @@ def build_loader(root):
     return DataLoader(datasets.ImageFolder(root, transform=transform), batch_size=32, num_workers=2)
 
 
+def validate_test_class_mapping(root, expected_classes=None):
+    expected_classes = list(expected_classes or config.VARIETY_CLASSES)
+    try:
+        dataset = datasets.ImageFolder(root)
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise ValueError(f"test dataset has no valid configured class mapping: {root}") from exc
+    expected_mapping = {name: index for index, name in enumerate(expected_classes)}
+    if dataset.class_to_idx != expected_mapping:
+        raise ValueError(
+            f"test dataset class mapping {dataset.class_to_idx} does not match "
+            f"the configured mapping {expected_mapping}"
+        )
+    if not dataset.samples:
+        raise ValueError(f"test dataset is empty: {root}")
+    return dataset.class_to_idx
+
+
+def classification_metrics(matrix):
+    """Return accuracy and unweighted per-class (macro) metrics."""
+    n = len(matrix)
+    per_class = []
+    for i in range(n):
+        tp = matrix[i][i]
+        fp = sum(matrix[j][i] for j in range(n)) - tp
+        fn = sum(matrix[i][j] for j in range(n)) - tp
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        per_class.append((precision, recall, f1))
+    total = sum(sum(row) for row in matrix)
+    accuracy = sum(matrix[i][i] for i in range(n)) / total if total else 0.0
+    return (
+        accuracy,
+        sum(item[0] for item in per_class) / n,
+        sum(item[1] for item in per_class) / n,
+        sum(item[2] for item in per_class) / n,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the corn variety classifier.")
     parser.add_argument("--weights", default=str(config.CLASSIFIER_WEIGHTS))
@@ -27,9 +66,9 @@ def main():
     args = parser.parse_args()
 
     if not Path(args.weights).exists():
-        print(f"weights not found: {args.weights}")
-        return
+        raise FileNotFoundError(f"weights not found: {args.weights}")
 
+    validate_test_class_mapping(args.data_root)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = models.efficientnet_v2_s(weights=None)
     model.classifier = torch.nn.Sequential(
@@ -57,7 +96,6 @@ def main():
         matrix[t][p] += 1
 
     print("Class | Precision | Recall | F1 | Support")
-    totals = {"tp": 0, "fp": 0, "fn": 0}
     for i, name in enumerate(config.VARIETY_CLASSES):
         tp = matrix[i][i]
         fp = sum(matrix[j][i] for j in range(n)) - tp
@@ -66,17 +104,13 @@ def main():
         precision = tp / (tp + fp) if tp + fp else 0.0
         recall = tp / (tp + fn) if tp + fn else 0.0
         f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-        totals["tp"] += tp
-        totals["fp"] += fp
-        totals["fn"] += fn
         print(f"{name:14s} {precision:.4f}   {recall:.4f}  {f1:.4f}  {support}")
 
-    tp, fp, fn = totals.values()
-    accuracy = tp / (tp + fn) if (tp + fn) else 0.0
-    precision = tp / (tp + fp) if (tp + fp) else 0.0
-    recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    print(f"accuracy={accuracy:.4f} macro_precision={precision:.4f} macro_recall={recall:.4f} macro_f1={f1:.4f}")
+    accuracy, macro_precision, macro_recall, macro_f1 = classification_metrics(matrix)
+    print(
+        f"accuracy={accuracy:.4f} macro_precision={macro_precision:.4f} "
+        f"macro_recall={macro_recall:.4f} macro_f1={macro_f1:.4f}"
+    )
 
 
 if __name__ == "__main__":

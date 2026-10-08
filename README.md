@@ -124,6 +124,25 @@ to `data/weights/corn_yolov11n.pt`. That is the production training path; compar
 runs do not change or populate `data/weights/`. The app auto-switches to real mode
 when production weights are present.
 
+### Combined Colab experiment
+
+Create the joint classifier-and-detector archive from the validated raw dataset:
+
+```bash
+python -m training.validate_dataset
+python -m training.prepare_cloud_bundle \
+  --output maisagip-cloud-joint-training-2026-10-08.zip
+```
+
+The bundle builds one shared ear-level train/validation/test assignment for both
+tasks. It preserves the approved assignments for `ear001`–`ear015`, then assigns
+the remaining ears within each variety using seed 42. The archive includes the
+split images and labels, eight-class detector metadata, training and evaluation
+scripts, and `CLOUD_README.md` with the Colab commands. It does not alter the
+local prepared splits. The current snapshot has no `shriveled_kernels` (class 7)
+or `mold` boxes, so a detector trained from it cannot be evaluated for those
+classes yet.
+
 ### YOLO comparison experiment
 
 The comparison catalog is exactly:
@@ -174,10 +193,9 @@ requested seed and `PYTHONHASHSEED` in run metadata, warns that YOLOv7's interna
 seed remains hardcoded, and treats those results as exploratory rather than claiming
 identical internal seeding across all models.
 
-The current dataset contains only 11 ears / 44 views. These runs are therefore
-exploratory comparisons for pipeline development, not reliable or publishable
-benchmarks; conclusions should be revisited after collecting substantially more
-ears.
+The dataset remains small relative to the protocol targets. Treat comparison
+results as exploratory and revisit conclusions after collecting substantially
+more ears and annotations for each defect class.
 
 ## Ground truth & eval
 
