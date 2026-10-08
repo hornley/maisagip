@@ -24,6 +24,7 @@ def _color_for(cls_name):
         "deformity": (33, 150, 243),
         "missing_kernels": (0, 188, 212),
         "ear_decay": (121, 85, 72),
+        "shriveled_kernels": (255, 193, 7),
         "white_corn": (121, 85, 72),
         "yellow_sweet_corn": (251, 192, 45),
     }

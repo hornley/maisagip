@@ -19,6 +19,7 @@ DEFECT_CLASSES = [
     "deformity",
     "missing_kernels",
     "ear_decay",
+    "shriveled_kernels",
 ]
 
 IMAGE_TARGET_SIZE = 448

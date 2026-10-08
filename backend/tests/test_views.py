@@ -41,6 +41,18 @@ def test_duplicate_across_adjacent_views_merges_to_one():
     assert merged["defect_coverage"] == 0.5
 
 
+def test_shriveled_kernels_detection_merges_like_other_defects():
+    merged = merge_views(
+        [
+            view(detections=[defect("corn_ear"), defect("shriveled_kernels")]),
+        ]
+    )
+
+    entry = by_class(merged, "shriveled_kernels")
+    assert entry["merged_count"] == 1
+    assert entry["coverage"] == 0.5
+
+
 def test_defects_in_non_adjacent_views_are_distinct():
     v1 = view(detections=[defect("corn_ear"), defect("mold")])
     v2 = ear_view()

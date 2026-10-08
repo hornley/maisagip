@@ -65,6 +65,9 @@ def test_build_data_yaml_writes_shared_absolute_dataset_definition(tmp_path):
     )
     assert content.endswith("\n")
     assert not (tmp_path / "comparison" / "weights").exists()
+    assert f"nc: {len(config.DEFECT_CLASSES)}" in content
+    assert "shriveled_kernels" in content
+    assert config.DEFECT_CLASSES[-1] == "shriveled_kernels"
 
 
 def test_build_yolov7_data_yaml_writes_absolute_split_paths(tmp_path):

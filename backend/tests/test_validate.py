@@ -37,6 +37,19 @@ def test_validate_detector_accepts_ear_decay_class(tmp_path):
     assert issues == []
 
 
+def test_validate_detector_accepts_shriveled_kernels_class(tmp_path):
+    img_root = tmp_path / "images"
+    lbl_root = tmp_path / "labels"
+    img_root.mkdir(); lbl_root.mkdir()
+    (img_root / "ear001_v1.jpg").write_bytes(b"x")
+    (lbl_root / "ear001_v1.txt").write_text("0 0.5 0.5 0.8 0.8\n7 0.3 0.3 0.1 0.1\n")
+    issues = []
+
+    validate_detector(img_root, lbl_root, issues)
+
+    assert issues == []
+
+
 def test_validate_detector_flags_missing_label(tmp_path):
     img_root = tmp_path / "images"
     lbl_root = tmp_path / "labels"
