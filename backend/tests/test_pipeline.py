@@ -132,6 +132,33 @@ def test_duplicate_defect_across_two_views_merges_to_one(monkeypatch):
     assert report["grade"]["grade"] == "ClassI"
 
 
+def test_shriveled_kernels_report_serializes_detection_and_uses_palette(monkeypatch):
+    monkeypatch.setattr(
+        pipeline.models,
+        "classify_variety",
+        lambda image: [{"class": "yellow_sweet_corn", "confidence": 0.95}],
+    )
+    monkeypatch.setattr(
+        pipeline.models,
+        "detect_defects",
+        lambda image: [
+            {"class": "corn_ear", "confidence": 0.95, "box": [0, 0, 600, 800]},
+            {
+                "class": "shriveled_kernels",
+                "confidence": 0.8,
+                "box": [230, 260, 330, 360],
+            },
+        ],
+    )
+
+    report = upload([make_corn_image()]).json()
+
+    assert any(d["class"] == "shriveled_kernels" for d in report["defects"])
+    annotated = client.get(report["views"][0]["image_url"])
+    rendered = np.array(Image.open(BytesIO(annotated.content)).convert("RGB"))
+    assert np.any(np.all(rendered == [255, 193, 7], axis=2))
+
+
 def test_inspect_rejects_invalid_upload():
     res = client.post("/inspect", files={"files": ("bad.txt", b"not an image", "text/plain")})
     assert res.status_code == 400

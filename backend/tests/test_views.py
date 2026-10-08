@@ -51,6 +51,7 @@ def test_shriveled_kernels_detection_merges_like_other_defects():
     entry = by_class(merged, "shriveled_kernels")
     assert entry["merged_count"] == 1
     assert entry["coverage"] == 0.5
+    assert merged["severe_present"] is False
 
 
 def test_defects_in_non_adjacent_views_are_distinct():
