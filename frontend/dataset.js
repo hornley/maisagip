@@ -23,7 +23,12 @@ const bulkSummary = document.getElementById("bulk-summary");
 const bulkImportBtn = document.getElementById("bulk-import-btn");
 const bulkStatus = document.getElementById("bulk-status");
 
-const PV_CLASSES = ["corn_ear", "mold", "insect_damage", "discoloration", "deformity", "missing_kernels", "ear_decay"];
+const PV_CLASSES = ["corn_ear", "mold", "insect_damage", "discoloration", "deformity", "missing_kernels", "ear_decay", "shriveled_kernels"];
+const annotatorHelp = document.querySelector(".annotator-help");
+if (annotatorHelp) {
+  const classShortcutHint = annotatorHelp.querySelector("b");
+  if (classShortcutHint) classShortcutHint.textContent = `1–${PV_CLASSES.length}`;
+}
 const LABEL_EDGE_EPSILON = 1e-4;
 const PV_COLORS = {
   corn_ear: "#4caf50",
@@ -33,6 +38,7 @@ const PV_COLORS = {
   deformity: "#2196f3",
   missing_kernels: "#00bcd4",
   ear_decay: "#795548",
+  shriveled_kernels: "#ffc107",
 };
 
 const pvModal = document.getElementById("preview-modal");
@@ -861,9 +867,10 @@ window.addEventListener("keydown", (event) => {
     if (!annotatorState.saving) saveAnnotatorView();
     return;
   }
-  if (annotatorModal.open && /^[1-7]$/.test(event.key)) {
+  const classShortcut = Number(event.key);
+  if (annotatorModal.open && Number.isInteger(classShortcut) && classShortcut >= 1 && classShortcut <= PV_CLASSES.length) {
     if (annotatorState.saving) return;
-    chooseAnnotatorClass(Number(event.key) - 1);
+    chooseAnnotatorClass(classShortcut - 1);
     event.preventDefault();
     return;
   }

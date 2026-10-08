@@ -85,12 +85,19 @@ The migration never removes HEIC/HEIF files or overwrites an existing JPEG. It r
 1  mold          4  deformity
 2  insect_damage 5  missing_kernels
                        6  ear_decay
+                       7  shriveled_kernels
 ```
+
+`shriveled_kernels` is appended to preserve the meaning of existing class IDs
+and detector outputs. Existing seven-class detector weights remain compatible
+with their original classes, but the detector must be retrained with the
+expanded dataset to predict the new class.
 
 Annotation protocol:
 - One `corn_ear` box per view (drives size/completeness).
 - Box every visible defect, in **every view where it appears**, same class per physical spot.
 - Deformity and extensive discoloration get ear-sized boxes — coverage % handles them.
+- Box visibly dried or shriveled kernel regions as `shriveled_kernels`, using a tight box around the affected patch rather than the whole ear unless the defect truly spans the whole ear.
 - YOLO export: `class x y w h` (normalized), filename = image stem.
 
 The Dataset page includes a local annotation desk. Click **Draw boxes** for an imported ear, choose a class, drag boxes over the processed image, and save each view. Existing YOLO labels can be edited in place; the tool requires a `corn_ear` box before saving. To replace an uploaded `.txt`, expand **Annotate**, choose **replace .txt**, and click **Save labels**.

@@ -35,10 +35,24 @@ data/raw/
 | 4 | `deformity` | whole-ear shape anomaly (ear-sized box) |
 | 5 | `missing_kernels` | missing/damaged kernel patches |
 | 6 | `ear_decay` | visible decay or rotting of the ear or kernels |
+| 7 | `shriveled_kernels` | visibly dried or shriveled kernel regions |
 
 Use the class table above as the annotation-tool configuration source so export
 indices match. If you maintain a local `obj.names` file, its lines must use this
 exact order.
+
+Fixed-order export reference:
+
+```
+0  corn_ear
+1  mold
+2  insect_damage
+3  discoloration
+4  deformity
+5  missing_kernels
+6  ear_decay
+7  shriveled_kernels
+```
 
 ## 3. Scale targets
 
@@ -82,6 +96,7 @@ Per image:
 3. **Same physical defect → same class in every view where it appears.** This is what lets the merge dedup the defect across roll views. Changing class between views splits one defect into several.
 4. Whole-ear defects — `deformity`, and extensive `discoloration` — get **ear-sized boxes**.
 5. `missing_kernels` boxes cover only the missing/damaged kernel patches, not the whole ear.
+6. `shriveled_kernels` boxes cover the visibly dried or shriveled kernel region, not the whole ear unless the defect truly spans the whole ear.
 
 Export to `data/raw/detector/labels/` with the same filename stem as the image (`ear001_v1.txt`).
 
@@ -201,6 +216,11 @@ substantially more ears before drawing general model-performance conclusions.
 The regular single-model detector command above remains the production path: it
 defaults to `yolo11n.pt`, uses `data/detector/data.yaml`, and copies its one best
 checkpoint to `data/weights/corn_yolov11n.pt`.
+
+The `shriveled_kernels` class is appended after the original seven classes so
+existing label files and detector outputs retain their class meanings. Existing
+seven-class weights remain usable for those original classes, but retraining is
+required before a detector can predict `shriveled_kernels`.
 
 ## 9. QC checklist before training
 
