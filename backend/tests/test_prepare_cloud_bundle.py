@@ -37,7 +37,7 @@ def test_create_bundle_contains_aligned_portable_snapshot(tmp_path):
     with ZipFile(archive_path) as archive:
         names = set(archive.namelist())
         assert all(relative.as_posix() in names for relative in _REQUIRED_FILES)
-        assert "data/classifier/train/yellow_sweet_corn/ear003_v1.jpg" in names
+        assert not any(name.startswith("data/classifier/") for name in names)
         assert "data/detector/images/val/ear001_v1.jpg" in names
         assert "data/detector/data.yaml" in names
         assert "requirements-cloud.txt" in names
@@ -50,10 +50,13 @@ def test_create_bundle_contains_aligned_portable_snapshot(tmp_path):
         readme = archive.read("CLOUD_README.md").decode()
         assert "cannot learn" in readme
         assert "held-out test split" in readme
+        assert "python -m training.materialize_cloud_classifier" in readme
         manifest = json.loads(archive.read("manifest.json"))
         assert "ear001" in manifest["splits"]["val"]["ears"]
         assert "ear013" in manifest["splits"]["val"]["ears"]
         assert {"ear002", "ear011", "ear015"}.issubset(manifest["splits"]["test"]["ears"])
+        assert manifest["ear_varieties"]["ear003"] == "yellow_sweet_corn"
+        assert manifest["ear_varieties"]["ear032"] == "white_corn"
         for split in ("train", "val", "test"):
             assert manifest["splits"][split]["variety_ear_counts"]["white_corn"] > 0
             assert manifest["splits"][split]["detector_class_counts"]["corn_ear"] == manifest["splits"][split]["image_count"]
@@ -61,8 +64,6 @@ def test_create_bundle_contains_aligned_portable_snapshot(tmp_path):
                 for view in range(1, 5):
                     name = f"{ear}_v{view}.jpg"
                     assert f"data/detector/images/{split}/{name}" in names
-                    variety = "white_corn" if int(ear[3:]) >= 32 else "yellow_sweet_corn"
-                    assert f"data/classifier/{split}/{variety}/{name}" in names
 
 
 def test_create_bundle_rejects_missing_view_and_label(tmp_path):

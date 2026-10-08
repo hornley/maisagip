@@ -22,6 +22,7 @@ SEED = 42
 _REQUIRED_FILES = (
     Path("training/__init__.py"),
     Path("training/make_dataset_split.py"),
+    Path("training/materialize_cloud_classifier.py"),
     Path("training/relocate_yolo_dataset.py"),
     Path("training/validate_dataset.py"),
     Path("training/train_classifier.py"),
@@ -175,7 +176,9 @@ def _readme(manifest: dict) -> str:
     return f"""# Maisagip combined Colab experiment
 
 This archive contains the EfficientNetV2-S variety classifier and Ultralytics
-detector experiment. Both tasks use exactly the same ear-level split, so no
+detector experiment. Each image is stored once. Run the materialization step
+below after extraction to create the classifier folders using local hardlinks
+(or copies if hardlinks are unavailable). Both tasks use exactly the same ear-level split, so no
 views of one ear cross train, validation, and test. Original assignments for
 ear001–ear015 are preserved; remaining ears are assigned within each variety
 with seed {SEED}. Exact IDs and class counts are in `manifest.json`.
@@ -210,6 +213,7 @@ below in a separate Colab code cell (prefix shell commands with `!`):
 
 ```bash
 python -m training.relocate_yolo_dataset --data-yaml data/detector/data.yaml --dataset-root data/detector --in-place
+python -m training.materialize_cloud_classifier --manifest manifest.json --data-root data
 python -m training.train_classifier --data-root data/classifier --epochs 30 --save-to data/weights/efficientnetv2_s_corn.pt
 python -m eval.eval_classifier --weights data/weights/efficientnetv2_s_corn.pt --data-root data/classifier/test
 python -m training.yolo_comparison --models yolo11s --device 0 --epochs 100 --batch 16 --imgsz 640 --seed 42
@@ -251,6 +255,9 @@ def create_bundle(project_root: str | Path, output: str | Path) -> Path:
     manifest = {
         "seed": SEED,
         "varieties": list(config.VARIETY_CLASSES),
+        "ear_varieties": {
+            ear: variety for variety, ears in ears_by_variety.items() for ear in ears
+        },
         "detector_classes": list(config.DEFECT_CLASSES),
         "detector_class_counts": {name: class_counts[name] for name in config.DEFECT_CLASSES},
         "splits": {},
@@ -274,9 +281,6 @@ def create_bundle(project_root: str | Path, output: str | Path) -> Path:
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for relative in _REQUIRED_FILES:
             archive.write(root / relative, relative.as_posix())
-        for variety, entries in classifier.items():
-            for stem, source in entries.items():
-                archive.write(source, f"data/classifier/{assignments[_ear(stem)]}/{variety}/{source.name}")
         for stem, source in detector.items():
             split = assignments[_ear(stem)]
             archive.write(source, f"data/detector/images/{split}/{source.name}")

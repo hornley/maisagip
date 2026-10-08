@@ -136,9 +136,10 @@ python -m training.prepare_cloud_bundle \
 
 The bundle builds one shared ear-level train/validation/test assignment for both
 tasks. It preserves the approved assignments for `ear001`–`ear015`, then assigns
-the remaining ears within each variety using seed 42. The archive includes the
-split images and labels, eight-class detector metadata, training and evaluation
-scripts, and `CLOUD_README.md` with the Colab commands. It does not alter the
+the remaining ears within each variety using seed 42. The archive stores each
+image once, plus detector labels, eight-class metadata, training and evaluation
+scripts, and `CLOUD_README.md` with the Colab commands. A setup command in that
+guide creates the classifier folders after extraction. It does not alter the
 local prepared splits. The current snapshot has no `shriveled_kernels` (class 7)
 or `mold` boxes, so a detector trained from it cannot be evaluated for those
 classes yet.
