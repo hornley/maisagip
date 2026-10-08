@@ -91,7 +91,9 @@ function render(report) {
   document.getElementById("overall-conf").textContent = `Overall confidence ${pct(report.grade.confidence)}`;
   document.getElementById("inspection-date").textContent =
     `Inspected ${report.inspection_date} · ${report.view_count} view(s)`;
-  document.getElementById("annotated").src = report.image_url;
+  const annotatedImage = document.getElementById("annotated");
+  annotatedImage.src = report.image_url;
+  renderAnnotationHotspots(report);
 
   const warning = document.getElementById("warning");
   warning.classList.add("hidden");
@@ -102,7 +104,7 @@ function render(report) {
 
   const gradeValue = document.getElementById("grade-value");
   gradeValue.textContent = report.grade.grade_label;
-  gradeValue.classList.toggle("below", !report.grade.grade);
+  gradeValue.classList.toggle("below", report.grade.grade === "Reject");
 
   document.getElementById("coverage-value").textContent = pct(report.defect_coverage);
   document.getElementById("coverage-bar").style.width = pct(report.defect_coverage);
@@ -164,4 +166,45 @@ function render(report) {
   chip.classList.remove("hidden");
 
   resultEl.scrollIntoView({ behavior: "smooth" });
+}
+
+function renderAnnotationHotspots(report) {
+  const overlay = document.getElementById("annotation-hotspots");
+  overlay.replaceChildren();
+  const views = report.views || [];
+  if (!views.length) return;
+
+  const columns = views.length >= 2 ? 2 : 1;
+  const cellWidth = Math.max(...views.map((view) => view.image_width || 0));
+  const cellHeight = Math.max(...views.map((view) => view.image_height || 0));
+  if (!cellWidth || !cellHeight) return;
+  const gridWidth = cellWidth * columns;
+  const gridHeight = cellHeight * Math.ceil(views.length / columns);
+
+  views.forEach((view, index) => {
+    const offsetX = (index % columns) * cellWidth;
+    const offsetY = Math.floor(index / columns) * cellHeight;
+    (view.defects || []).forEach((detection) => {
+      const [x0, y0, x1, y1] = detection.box;
+      if (x1 <= x0 || y1 <= y0) return;
+      const hotspot = document.createElement("button");
+      hotspot.type = "button";
+      hotspot.className = "annotation-hotspot";
+      hotspot.classList.add(detection.class === "corn_ear" ? "ear-hotspot" : "defect-hotspot");
+      const name = detection.class.replace(/_/g, " ");
+      const label = `${name} · ${pct(detection.confidence)} · view ${view.view}`;
+      hotspot.setAttribute("aria-label", label);
+      hotspot.style.left = `${((offsetX + x0) / gridWidth) * 100}%`;
+      hotspot.style.top = `${((offsetY + y0) / gridHeight) * 100}%`;
+      hotspot.style.width = `${((x1 - x0) / gridWidth) * 100}%`;
+      hotspot.style.height = `${((y1 - y0) / gridHeight) * 100}%`;
+      const tooltip = document.createElement("span");
+      tooltip.className = "annotation-tooltip";
+      tooltip.textContent = label;
+      if (offsetX + x0 > gridWidth * 0.65) hotspot.classList.add("tooltip-right");
+      if (offsetY + y0 > gridHeight - 60) hotspot.classList.add("tooltip-above");
+      hotspot.appendChild(tooltip);
+      overlay.appendChild(hotspot);
+    });
+  });
 }

@@ -6,6 +6,7 @@ from pathlib import Path
 from backend.app import config
 
 _EAR_SUFFIX = re.compile(r"_v\d+$")
+_BOX_EDGE_EPSILON = 1e-4
 
 
 def ear_id(path: Path):
@@ -27,6 +28,7 @@ def check_label_lines(label_name, lines, problems):
             problems.append(f"{label_name}:{line_no} expected 5 fields, got {len(parts)}")
             continue
         cls, x, y, w, h = parts
+        valid_line = True
         try:
             cls_idx = int(cls)
         except ValueError:
@@ -36,15 +38,30 @@ def check_label_lines(label_name, lines, problems):
             problems.append(
                 f"{label_name}:{line_no} class {cls_idx} out of range 0..{len(config.DEFECT_CLASSES) - 1}"
             )
+            valid_line = False
+        coordinates = {}
         for name, value in (("x", x), ("y", y), ("w", w), ("h", h)):
             try:
                 num = float(value)
             except ValueError:
                 problems.append(f"{label_name}:{line_no} coordinate {name} not numeric: {value}")
-                break
+                valid_line = False
+                continue
+            coordinates[name] = num
             if not 0.0 <= num <= 1.0:
                 problems.append(f"{label_name}:{line_no} coordinate {name} out of [0,1]: {num}")
-        if cls_idx == 0:
+                valid_line = False
+        if len(coordinates) == 4:
+            if coordinates["w"] <= 0 or coordinates["h"] <= 0:
+                problems.append(f"{label_name}:{line_no} box width and height must be greater than zero")
+                valid_line = False
+            if coordinates["x"] - coordinates["w"] / 2 < -_BOX_EDGE_EPSILON or coordinates["x"] + coordinates["w"] / 2 > 1 + _BOX_EDGE_EPSILON:
+                problems.append(f"{label_name}:{line_no} box extends outside the image horizontally")
+                valid_line = False
+            if coordinates["y"] - coordinates["h"] / 2 < -_BOX_EDGE_EPSILON or coordinates["y"] + coordinates["h"] / 2 > 1 + _BOX_EDGE_EPSILON:
+                problems.append(f"{label_name}:{line_no} box extends outside the image vertically")
+                valid_line = False
+        if cls_idx == 0 and valid_line:
             has_ear = True
     if not has_ear:
         problems.append(f"{label_name}: missing required class 0 (corn_ear) box")

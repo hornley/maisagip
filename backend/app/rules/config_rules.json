@@ -14,7 +14,7 @@
       "coverage_less_than": 0.10
     }
   },
-  "below_grade_label": "Below Class II",
+  "below_grade_label": "Reject",
   "utilization": [
     {
       "condition": "coverage_ge",

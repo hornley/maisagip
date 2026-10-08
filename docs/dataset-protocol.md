@@ -16,7 +16,7 @@ data/raw/
 │   │   └── earNNN_v1.jpg … earNNN_v4.jpg     (same photos as classifier)
 │   ├── labels/
 │   │   └── earNNN_v1.txt … earNNN_v4.txt     (YOLO format, same stem)
-│   └── obj.names                             (class list, pre-created)
+│   └── obj.names                             (optional class-list reference)
 └── ground_truth.csv                          (per-ear human grading)
 ```
 
@@ -34,8 +34,25 @@ data/raw/
 | 3 | `discoloration` | abnormal kernel color |
 | 4 | `deformity` | whole-ear shape anomaly (ear-sized box) |
 | 5 | `missing_kernels` | missing/damaged kernel patches |
+| 6 | `ear_decay` | visible decay or rotting of the ear or kernels |
+| 7 | `shriveled_kernels` | visibly dried or shriveled kernel regions |
 
-`data/raw/detector/obj.names` is pre-created with this exact order; load it in your annotation tool so export indices match.
+Use the class table above as the annotation-tool configuration source so export
+indices match. If you maintain a local `obj.names` file, its lines must use this
+exact order.
+
+Fixed-order export reference:
+
+```
+0  corn_ear
+1  mold
+2  insect_damage
+3  discoloration
+4  deformity
+5  missing_kernels
+6  ear_decay
+7  shriveled_kernels
+```
 
 ## 3. Scale targets
 
@@ -70,7 +87,7 @@ data/raw/
 
 ## 6. Annotation (detector boxes)
 
-**Tool**: LabelImg (free, local, YOLO export) or CVAT/Roboflow (export YOLO `.txt`). Configure the class list from `obj.names` so the index order is fixed.
+**Tool**: LabelImg (free, local, YOLO export) or CVAT/Roboflow (export YOLO `.txt`). Configure the tool with the class table above, or with a local `obj.names` file containing that exact order.
 
 Per image:
 
@@ -79,6 +96,7 @@ Per image:
 3. **Same physical defect → same class in every view where it appears.** This is what lets the merge dedup the defect across roll views. Changing class between views splits one defect into several.
 4. Whole-ear defects — `deformity`, and extensive `discoloration` — get **ear-sized boxes**.
 5. `missing_kernels` boxes cover only the missing/damaged kernel patches, not the whole ear.
+6. `shriveled_kernels` boxes cover the visibly dried or shriveled kernel region, not the whole ear unless the defect truly spans the whole ear.
 
 Export to `data/raw/detector/labels/` with the same filename stem as the image (`ear001_v1.txt`).
 
@@ -98,7 +116,7 @@ ear001,yellow_sweet_corn,0.03,1,0,0,0,Class I
 
 - `coverage`: your human estimate of total defect percentage, 0.00–1.00 (base it on the merged per-defect areas you observed across views).
 - `counts`: number of *distinct* physical defects per class (after merging across views), not box totals.
-- `grade`: `Extra Class`, `Class I`, `Class II`, or `Reject`, using the pipeline's own thresholds so eval compares like for like: Extra = 0% coverage, Class I < 5%, Class II < 10%, Reject ≥ 10% (any mold/insect presence overrides to Reject/animal feed).
+- `grade`: `Extra Class`, `Class I`, `Class II`, or `Below Class II (Reject)`. The CSV stores the last grade using the `Reject` alias, matching the production rules: Extra = 0% coverage, Class I < 5%, Class II < 10%, Below Class II (Reject) ≥ 10% (any mold/insect presence overrides to Reject/animal feed).
 
 This CSV is the reference for `eval/eval_merge.py` — it is how the merge's correctness gets proven.
 
@@ -119,10 +137,90 @@ python -m training.train_detector --epochs 100
 # 4. Evaluate
 python -m eval.eval_classifier
 python -m eval.eval_detector
-python -m eval.eval_merge --images data/raw/detector/images --ground-truth data/raw/ground_truth.csv
+python -m eval.eval_merge --images data/raw/detector/images --csv data/raw/ground_truth.csv
 ```
 
 Weights land in `data/weights/`; the app auto-switches from demo to real providers when they exist.
+
+### YOLO comparison experiment
+
+The comparison uses this exact model set:
+
+- `yolov7-tiny`, `yolov7`, `yolov7x`: official YOLOv7 checkout and its native
+  `train.py` / `test.py` scripts.
+- `yolov8n`, `yolov8s`, `yolov8m`, `yolo11s`: Ultralytics.
+
+Run the shared preparation and comparison with:
+
+```bash
+python -m training.validate_dataset
+python -m training.make_dataset_split --seed 42
+python -m training.yolo_comparison \
+  --epochs 100 --batch 16 --imgsz 640 --seed 42 \
+  --yolov7-root /path/to/yolov7
+```
+
+For the preliminary Colab comparison, use the approved fixed detector split
+before creating the cloud bundle:
+
+```bash
+python -m training.validate_dataset
+python -m training.make_dataset_split \
+  --detector-split-profile colab-fixed \
+  --seed 42
+python -m training.prepare_cloud_bundle \
+  --output maisagip-cloud-training.zip
+```
+
+This preserves the existing ear 1–11 allocation, places `ear012` and
+`ear014` in train, `ear013` in validation, and `ear015` in test. Ears 16–31
+use the grouped seeded split, producing 22 train ears, 4 validation ears, and
+5 test ears (88/16/20 images when every ear has four views). The test set is
+held out for final evaluation; the comparison is exploratory because it
+contains only five test ears.
+
+The splitter groups filenames by ear ID, so all four views of each ear remain in
+the same train, validation, or test split. Every model therefore consumes the same
+ear-level split. Comparison results and checkpoints are written below
+`data/comparisons/yolo/`. The runner may regenerate the shared
+`data/detector/data.yaml`, but comparison runs do not modify the source detector
+images or labels and never copy checkpoints into production `data/weights/`.
+
+To inspect the planned commands without importing ML packages or training, use:
+
+```bash
+python -m training.yolo_comparison \
+  --seed 42 --yolov7-root /path/to/yolov7 --dry-run
+```
+
+Run a single model with the comma-separated filter (the Ultralytics models do not
+need `--yolov7-root`):
+
+```bash
+python -m training.yolo_comparison \
+  --models yolo11s --epochs 100 --batch 16 --imgsz 640 --seed 42
+```
+
+When using YOLOv7, `--yolov7-python PATH` can select the Python executable from its
+environment, and `--yolov7-weights-dir PATH` can point to local files such as
+`yolov7-tiny.pt`, `yolov7.pt`, and `yolov7x.pt`. The official YOLOv7 `train.py`
+lacks a `--seed` option. The runner records the requested seed and
+`PYTHONHASHSEED`, warns that YOLOv7's internal seed remains hardcoded, and marks
+those results as exploratory; it does not claim identical internal seeding across
+the model families.
+
+The current dataset is only 11 ears / 44 views. The comparison is consequently an
+exploratory engineering experiment, not a reliable or publishable benchmark. Add
+substantially more ears before drawing general model-performance conclusions.
+
+The regular single-model detector command above remains the production path: it
+defaults to `yolo11n.pt`, uses `data/detector/data.yaml`, and copies its one best
+checkpoint to `data/weights/corn_yolov11n.pt`.
+
+The `shriveled_kernels` class is appended after the original seven classes so
+existing label files and detector outputs retain their class meanings. Existing
+seven-class weights remain usable for those original classes, but retraining is
+required before a detector can predict `shriveled_kernels`.
 
 ## 9. QC checklist before training
 

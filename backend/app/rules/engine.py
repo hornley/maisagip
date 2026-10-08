@@ -27,15 +27,20 @@ class GradeEngine:
             spec = grades[key]
             if "coverage_at_most" in spec:
                 passes = coverage <= spec["coverage_at_most"]
-                bound = f"coverage {coverage:.4f} at most {spec['coverage_at_most']:.2f}"
+                threshold = spec["coverage_at_most"]
+                criterion = f"at most {threshold * 100:g}%"
             else:
                 passes = coverage < spec["coverage_less_than"]
-                bound = f"coverage {coverage:.4f} less than {spec['coverage_less_than']:.2f}"
+                threshold = spec["coverage_less_than"]
+                criterion = f"below {threshold * 100:g}%"
+            coverage_text = f"{coverage * 100:.2f}".rstrip("0").rstrip(".") + "%"
             if passes:
-                reasons.append(f"Meets {spec['label']} criteria: {bound}")
+                reasons.append(f"Meets {spec['label']} criteria: {coverage_text} coverage is {criterion}.")
                 return key, spec["label"], reasons
-            reasons.append(f"Fails {spec['label']}: requires {bound}")
-        return None, self.rules["below_grade_label"], reasons
+            reasons.append(f"Fails {spec['label']}: {coverage_text} coverage is not {criterion}.")
+        reject_threshold = grades[grade_order[-1]]["coverage_less_than"] * 100
+        reasons.append(f"Assigned Reject: coverage is {coverage_text}, at or above {reject_threshold:g}%.")
+        return "Reject", self.rules["below_grade_label"], reasons
 
     def _choose_utilization(self, coverage, severe_present):
         for rule in self.rules["utilization"]:

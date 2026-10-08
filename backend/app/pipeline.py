@@ -1,8 +1,4 @@
-import io
-
-import numpy as np
-from PIL import Image
-
+from . import image_io
 from . import models
 from . import traits as traits_mod
 from .report import build_report
@@ -13,12 +9,7 @@ _engine = GradeEngine()
 
 
 def decode_image(bytes_data):
-    try:
-        pil = Image.open(io.BytesIO(bytes_data))
-        pil = pil.convert("RGB")
-        return np.array(pil)
-    except Exception as exc:
-        raise ValueError(f"Unable to decode image: {exc}") from exc
+    return image_io.decode_image_bytes(bytes_data)
 
 
 def inspect_ear(images_bytes):

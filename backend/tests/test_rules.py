@@ -29,15 +29,15 @@ def test_between_five_and_ten_percent_is_class_two():
 
 def test_coverage_at_ten_percent_is_rejected():
     result = grade(0.10)
-    assert result["grade"] is None
-    assert result["grade_label"] == "Below Class II"
+    assert result["grade"] == "Reject"
+    assert result["grade_label"] == "Reject"
     assert result["utilization"]["recommendation"] == "reject"
 
 
 def test_coverage_above_ten_percent_is_rejected():
     result = grade(0.14)
-    assert result["grade"] is None
-    assert result["grade_label"] == "Below Class II"
+    assert result["grade"] == "Reject"
+    assert result["grade_label"] == "Reject"
     assert result["utilization"]["recommendation"] == "reject"
 
 
@@ -81,3 +81,12 @@ def test_grade_reasons_are_explainable():
     result = grade(0.0)
     summary = "\n".join(result["grade_reasons"])
     assert "Meets Extra Class criteria" in summary
+
+
+def test_grade_reasons_use_percentages():
+    result = grade(0.2643)
+    summary = "\n".join(result["grade_reasons"])
+    assert "26.43%" in summary
+    assert "5%" in summary
+    assert "10%" in summary
+    assert "0.2643" not in summary

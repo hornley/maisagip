@@ -23,6 +23,8 @@ def _color_for(cls_name):
         "discoloration": (255, 152, 0),
         "deformity": (33, 150, 243),
         "missing_kernels": (0, 188, 212),
+        "ear_decay": (121, 85, 72),
+        "shriveled_kernels": (255, 193, 7),
         "white_corn": (121, 85, 72),
         "yellow_sweet_corn": (251, 192, 45),
     }
@@ -105,6 +107,8 @@ def build_report(per_view, merged, engine_result):
                 "variety": entry["variety"],
                 "defects": entry["detections"],
                 "traits": entry["traits"],
+                "image_width": entry["image"].shape[1],
+                "image_height": entry["image"].shape[0],
                 "image_url": f"/report/{report_id}/views/{idx}/image",
             }
         )

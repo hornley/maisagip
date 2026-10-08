@@ -101,8 +101,17 @@ class RealDetector:
         self.model = YOLO(str(weights_path))
 
     def predict(self, image):
+        from PIL import Image
+
         detections = []
-        results = self.model.predict(image, imgsz=config.DETECTOR_IMAGE_SIZE, conf=0.25, verbose=False)
+        # ``image`` is decoded by image_io as RGB. Ultralytics treats NumPy
+        # colour arrays as BGR, while PIL RGB inputs are converted internally
+        # to the expected BGR representation. Passing PIL here keeps upload
+        # inference consistent with file-based inference.
+        source = Image.fromarray(image).convert("RGB")
+        results = self.model.predict(
+            source, imgsz=config.DETECTOR_IMAGE_SIZE, conf=0.25, verbose=False
+        )
         if not results:
             return detections
         boxes = results[0].boxes

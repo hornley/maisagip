@@ -4,7 +4,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from backend.app import config
+from backend.app import config, image_io, pipeline
 from backend.app.main import app
 
 client = TestClient(app)
@@ -31,6 +31,35 @@ def png_bytes(array):
 def upload(files):
     payload = [("files", (f"v{i + 1}.png", png_bytes(img), "image/png")) for i, img in enumerate(files)]
     return client.post("/inspect", files=payload)
+
+
+def test_decode_image_delegates_to_image_io_and_provider_gets_rgb_array(monkeypatch):
+    source = b"encoded image bytes"
+    decoded = np.zeros((2, 3, 3), dtype=np.uint8)
+    decode_calls = []
+    provider_images = []
+
+    def fake_decode_image_bytes(data):
+        decode_calls.append(data)
+        return decoded
+
+    def fake_classify_variety(image):
+        provider_images.append(image)
+        return [{"class": "yellow_sweet_corn", "confidence": 0.95}]
+
+    monkeypatch.setattr(image_io, "decode_image_bytes", fake_decode_image_bytes)
+    monkeypatch.setattr(pipeline.models, "classify_variety", fake_classify_variety)
+    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: [])
+    monkeypatch.setattr(pipeline.models, "provider_modes", lambda: {})
+
+    report = pipeline.inspect_ear([source])
+
+    assert decode_calls == [source]
+    assert len(provider_images) == 1
+    assert provider_images[0] is decoded
+    assert isinstance(provider_images[0], np.ndarray)
+    assert provider_images[0].shape[-1] == 3
+    assert report["view_count"] == 1
 
 
 def test_health_reports_providers():
@@ -62,7 +91,34 @@ def test_multi_view_inspection_reports_views_and_merge():
     assert report["grade"]["grade"] == "ExtraClass"
 
 
-def test_duplicate_defect_across_two_views_merges_to_one():
+def test_duplicate_defect_across_two_views_merges_to_one(monkeypatch):
+    monkeypatch.setattr(
+        pipeline.models,
+        "classify_variety",
+        lambda image: [{"class": "yellow_sweet_corn", "confidence": 0.95}],
+    )
+
+    def fake_detect_defects(image):
+        h, w = image.shape[:2]
+        detections = [
+            {
+                "class": "corn_ear",
+                "confidence": 0.95,
+                "box": [0, 0, float(w), float(h)],
+            }
+        ]
+        if int(image[300, 300, 0]) == 60:
+            detections.append(
+                {
+                    "class": "discoloration",
+                    "confidence": 0.7,
+                    "box": [230, 260, 330, 360],
+                }
+            )
+        return detections
+
+    monkeypatch.setattr(pipeline.models, "detect_defects", fake_detect_defects)
+
     good = make_corn_image()
     bad = make_corn_image(defective=True)
     res = upload([bad, bad, good, good])
@@ -74,6 +130,33 @@ def test_duplicate_defect_across_two_views_merges_to_one():
     assert discolor[0]["views_seen"] == [0, 1]
     assert report["defect_coverage"] > 0.0
     assert report["grade"]["grade"] == "ClassI"
+
+
+def test_shriveled_kernels_report_serializes_detection_and_uses_palette(monkeypatch):
+    monkeypatch.setattr(
+        pipeline.models,
+        "classify_variety",
+        lambda image: [{"class": "yellow_sweet_corn", "confidence": 0.95}],
+    )
+    monkeypatch.setattr(
+        pipeline.models,
+        "detect_defects",
+        lambda image: [
+            {"class": "corn_ear", "confidence": 0.95, "box": [0, 0, 600, 800]},
+            {
+                "class": "shriveled_kernels",
+                "confidence": 0.8,
+                "box": [230, 260, 330, 360],
+            },
+        ],
+    )
+
+    report = upload([make_corn_image()]).json()
+
+    assert any(d["class"] == "shriveled_kernels" for d in report["defects"])
+    annotated = client.get(report["views"][0]["image_url"])
+    rendered = np.array(Image.open(BytesIO(annotated.content)).convert("RGB"))
+    assert np.any(np.all(rendered == [255, 193, 7], axis=2))
 
 
 def test_inspect_rejects_invalid_upload():
