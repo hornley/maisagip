@@ -1,4 +1,5 @@
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 
 import torch
@@ -49,7 +50,14 @@ def validate_classification_split(root, expected_classes=None):
     return dataset
 
 
-def make_loader(root, target_size, train=False):
+def positive_int(value):
+    value = int(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
+
+
+def make_loader(root, target_size, train=False, batch_size=4):
     common = [
         transforms.Resize(int(target_size * 1.1)),
         transforms.CenterCrop(target_size),
@@ -63,7 +71,7 @@ def make_loader(root, target_size, train=False):
     transform = transforms.Compose(common + normalize)
     return DataLoader(
         datasets.ImageFolder(root, transform=transform),
-        batch_size=32,
+        batch_size=batch_size,
         shuffle=train,
         num_workers=2,
     )
@@ -73,20 +81,29 @@ def should_save_checkpoint(accuracy, best_accuracy):
     return best_accuracy is None or accuracy > best_accuracy
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description="Fine-tune EfficientNetV2-S for corn variety classification.")
     parser.add_argument("--data-root", default=str(config.DATA_DIR / "classifier"))
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--batch-size", type=positive_int, default=4)
     parser.add_argument("--save-to", default=str(config.CLASSIFIER_WEIGHTS))
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
 
     train_root = Path(args.data_root) / "train"
     val_root = Path(args.data_root) / "val"
     validate_classification_split(train_root)
     validate_classification_split(val_root)
-    train_loader = make_loader(train_root, config.IMAGE_TARGET_SIZE, train=True)
-    val_loader = make_loader(val_root, config.IMAGE_TARGET_SIZE, train=False)
+    train_loader = make_loader(
+        train_root, config.IMAGE_TARGET_SIZE, train=True, batch_size=args.batch_size
+    )
+    val_loader = make_loader(
+        val_root, config.IMAGE_TARGET_SIZE, train=False, batch_size=args.batch_size
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_classes = len(config.VARIETY_CLASSES)
@@ -100,6 +117,8 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    use_amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     best_acc = None
     for epoch in range(args.epochs):
@@ -108,9 +127,15 @@ def main():
         for inputs, targets in train_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
-            loss = criterion(model(inputs), targets)
-            loss.backward()
-            optimizer.step()
+            with torch.amp.autocast("cuda", enabled=use_amp) if use_amp else nullcontext():
+                loss = criterion(model(inputs), targets)
+            if use_amp:
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
             running += loss.item() * inputs.size(0)
         train_loss = running / len(train_loader.dataset)
 
@@ -132,7 +157,8 @@ def evaluate(model, loader, device):
     with torch.no_grad():
         for inputs, targets in loader:
             inputs, targets = inputs.to(device), targets.to(device)
-            preds = model(inputs).argmax(dim=1)
+            with torch.amp.autocast("cuda", enabled=device.type == "cuda") if device.type == "cuda" else nullcontext():
+                preds = model(inputs).argmax(dim=1)
             correct += (preds == targets).sum().item()
             total += targets.size(0)
     return correct / max(total, 1)

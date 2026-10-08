@@ -43,3 +43,25 @@ def test_first_zero_accuracy_is_a_best_checkpoint():
     best_acc = None
     observed_acc = 0.0
     assert train_classifier.should_save_checkpoint(observed_acc, best_acc)
+
+
+def test_batch_size_cli_defaults_to_four_and_rejects_non_positive_values():
+    parser = train_classifier.build_parser()
+
+    assert parser.parse_args([]).batch_size == 4
+    assert parser.parse_args(["--batch-size", "7"]).batch_size == 7
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--batch-size", "0"])
+
+
+def test_make_loader_uses_requested_batch_size(tmp_path):
+    from PIL import Image
+
+    split = tmp_path / "train"
+    _split(split, ["white_corn", "yellow_sweet_corn"])
+    for path in split.glob("*/*.jpg"):
+        Image.new("RGB", (2, 2), color="white").save(path)
+
+    loader = train_classifier.make_loader(split, target_size=2, batch_size=1)
+
+    assert loader.batch_size == 1

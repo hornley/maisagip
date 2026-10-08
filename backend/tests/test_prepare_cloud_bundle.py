@@ -51,6 +51,7 @@ def test_create_bundle_contains_aligned_portable_snapshot(tmp_path):
         assert "cannot learn" in readme
         assert "held-out test split" in readme
         assert "python -m training.materialize_cloud_classifier" in readme
+        assert "--batch-size 4" in readme
         manifest = json.loads(archive.read("manifest.json"))
         assert "ear001" in manifest["splits"]["val"]["ears"]
         assert "ear013" in manifest["splits"]["val"]["ears"]

@@ -214,7 +214,7 @@ below in a separate Colab code cell (prefix shell commands with `!`):
 ```bash
 python -m training.relocate_yolo_dataset --data-yaml data/detector/data.yaml --dataset-root data/detector --in-place
 python -m training.materialize_cloud_classifier --manifest manifest.json --data-root data
-python -m training.train_classifier --data-root data/classifier --epochs 30 --save-to data/weights/efficientnetv2_s_corn.pt
+python -m training.train_classifier --data-root data/classifier --epochs 30 --batch-size 4 --save-to data/weights/efficientnetv2_s_corn.pt
 python -m eval.eval_classifier --weights data/weights/efficientnetv2_s_corn.pt --data-root data/classifier/test
 python -m training.yolo_comparison --models yolo11s --device 0 --epochs 100 --batch 16 --imgsz 640 --seed 42
 ```
@@ -227,6 +227,8 @@ earlier four-model comparison, change `--models yolo11s` to
 
 Checkpoints and outputs live in Colab's temporary storage. Copy them to Drive
 before the runtime ends if you want to keep them.
+If classifier training still runs out of GPU memory, rerun its command with
+`--batch-size 2` (or `1`). The classifier uses CUDA mixed precision automatically.
 """
 
 

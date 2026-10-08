@@ -143,6 +143,8 @@ guide creates the classifier folders after extraction. It does not alter the
 local prepared splits. The current snapshot has no `shriveled_kernels` (class 7)
 or `mold` boxes, so a detector trained from it cannot be evaluated for those
 classes yet.
+The Colab classifier command uses batch size 4 and CUDA mixed precision to
+fit the 448-pixel EfficientNetV2-S training run on a typical 15 GB GPU.
 
 ### YOLO comparison experiment
 
