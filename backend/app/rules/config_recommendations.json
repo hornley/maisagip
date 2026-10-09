@@ -1,0 +1,37 @@
+{
+  "safety_exclusions": ["mold", "ear_decay"],
+  "required_price_adjustments": ["defect_coverage", "size", "completeness"],
+  "channels": [
+    {
+      "id": "local_market",
+      "label": "Local market",
+      "checks": ["buyer acceptance and applicable local quality requirements"],
+      "reason": "Visible appearance and the assigned grade can support a local-market candidate, subject to buyer checks."
+    },
+    {
+      "id": "export",
+      "label": "Export",
+      "checks": ["importer requirements", "official export inspection and documentation", "product-specific quality tests"],
+      "reason": "Export eligibility cannot be established from visual inspection; confirm importer and official requirements."
+    },
+    {
+      "id": "premium_sale",
+      "label": "Premium sale",
+      "checks": ["buyer specification", "size and appearance acceptance"],
+      "reason": "A premium outlet is only a candidate when the visible appearance and completeness support buyer review."
+    },
+    {
+      "id": "food_processing_canned",
+      "label": "Food processing/canned",
+      "checks": ["processor specification", "processing suitability and required food-safety tests"],
+      "reason": "Processing may be a practical outlet, but suitability and food-safety requirements need external confirmation."
+    }
+  ],
+  "reject": {
+    "hold_label": "Hold for qualified inspection/testing",
+    "hold_checks": ["qualified inspection", "applicable food/feed-safety testing"],
+    "feed_label": "Poultry/feed alternative",
+    "feed_checks": ["validated feed-safety rules", "buyer/feed-mill acceptance"]
+  },
+  "rates": []
+}

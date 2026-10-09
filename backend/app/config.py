@@ -24,6 +24,14 @@ DEFECT_CLASSES = [
 
 IMAGE_TARGET_SIZE = 448
 DETECTOR_IMAGE_SIZE = 640
+# Inspection requests may tune this within this deliberately narrow range.
+DEFAULT_CONFIDENCE_THRESHOLD = 0.5
+MIN_CONFIDENCE_THRESHOLD = 0.5
+MAX_CONFIDENCE_THRESHOLD = 0.8
+# No validation evidence is checked in to justify changing YOLO's documented
+# default, so keep that conservative configured value explicit until an audit
+# supports a measured alternative.
+DETECTOR_NMS_IOU = 0.7
 CONFIDENCE_THRESHOLD = 0.30
 DEMO_CONFIDENCE_BASE = 0.86
 NEEDS_REINSPECTION_CONF = 0.60

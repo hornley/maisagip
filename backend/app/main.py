@@ -1,12 +1,12 @@
 from typing import List
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, models
 from .dataset_api import router as dataset_router
-from .pipeline import inspect_ear
+from .pipeline import InconsistentInspectionInput, inspect_ear
 from .report import REPORTS
 
 app = FastAPI(title="Maisagip", version="0.2.0")
@@ -25,7 +25,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 @app.post("/inspect")
-async def inspect(files: List[UploadFile] = File(...)):
+async def inspect(
+    files: List[UploadFile] = File(...),
+    confidence_threshold: float = Form(
+        config.DEFAULT_CONFIDENCE_THRESHOLD,
+        ge=config.MIN_CONFIDENCE_THRESHOLD,
+        le=config.MAX_CONFIDENCE_THRESHOLD,
+    ),
+):
     if not files:
         raise HTTPException(status_code=400, detail="At least one image is required.")
     contents = []
@@ -35,7 +42,9 @@ async def inspect(files: List[UploadFile] = File(...)):
             raise HTTPException(status_code=400, detail=f"Empty upload: {file.filename}")
         contents.append(content)
     try:
-        return inspect_ear(contents)
+        return inspect_ear(contents, confidence_threshold)
+    except InconsistentInspectionInput as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

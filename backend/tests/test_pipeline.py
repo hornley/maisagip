@@ -179,3 +179,75 @@ def test_report_images_served_after_inspection():
         img = client.get(v["image_url"])
         assert img.status_code == 200
         assert img.headers["content-type"] == "image/png"
+
+
+def test_request_threshold_is_recorded_and_validated():
+    res = upload([make_corn_image()])
+    assert res.status_code == 200
+    assert res.json()["confidence_threshold"] == 0.5
+
+    invalid = client.post(
+        "/inspect",
+        files=[("files", ("v1.png", png_bytes(make_corn_image()), "image/png"))],
+        data={"confidence_threshold": "0.49"},
+    )
+    assert invalid.status_code == 422
+    assert "confidence_threshold" in str(invalid.json()["detail"])
+
+    upper = client.post(
+        "/inspect",
+        files=[("files", ("v1.png", png_bytes(make_corn_image()), "image/png"))],
+        data={"confidence_threshold": "0.8"},
+    )
+    assert upper.status_code == 200
+    assert upper.json()["confidence_threshold"] == 0.8
+    for value in ("0.81", "not-a-number"):
+        rejected = client.post(
+            "/inspect",
+            files=[("files", ("v1.png", png_bytes(make_corn_image()), "image/png"))],
+            data={"confidence_threshold": value},
+        )
+        assert rejected.status_code == 422
+
+
+def test_lower_confidence_variety_disagreement_warns_and_is_allowed(monkeypatch):
+    labels = iter([
+        {"class": "yellow_sweet_corn", "confidence": 0.55},
+        {"class": "white_corn", "confidence": 0.55},
+    ])
+    monkeypatch.setattr(pipeline.models, "classify_variety", lambda image: [next(labels)])
+    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: [])
+
+    res = client.post(
+        "/inspect",
+        files=[
+            ("files", ("v1.png", png_bytes(make_corn_image()), "image/png")),
+            ("files", ("v2.png", png_bytes(make_corn_image()), "image/png")),
+        ],
+        data={"confidence_threshold": "0.6"},
+    )
+    assert res.status_code == 200, res.text
+    report = res.json()
+    assert report["grade"]["needs_reinspection"] is True
+    assert report["warnings"]
+
+
+def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
+    labels = iter([
+        {"class": "yellow_sweet_corn", "confidence": 0.9},
+        {"class": "white_corn", "confidence": 0.9},
+    ])
+    monkeypatch.setattr(pipeline.models, "classify_variety", lambda image: [next(labels)])
+    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: [])
+
+    res = client.post(
+        "/inspect",
+        files=[
+            ("files", ("v1.png", png_bytes(make_corn_image()), "image/png")),
+            ("files", ("v2.png", png_bytes(make_corn_image()), "image/png")),
+        ],
+        data={"confidence_threshold": "0.6"},
+    )
+    assert res.status_code == 400
+    assert "mixed-variety" in res.json()["detail"] or "different corn varieties" in res.json()["detail"]
+    assert "reinspect" in res.json()["detail"]

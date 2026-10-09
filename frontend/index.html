@@ -37,6 +37,14 @@
       <div id="file-list" class="file-list hidden"></div>
       <div id="preview-wrap" class="preview hidden">
         <div id="previews" class="previews"></div>
+        <div class="confidence-control">
+          <label for="confidence-threshold">
+            Confidence threshold
+            <output id="confidence-threshold-value" for="confidence-threshold">50%</output>
+          </label>
+          <input id="confidence-threshold" type="range" min="50" max="80" step="5" value="50">
+          <small>Higher values can hide lower-confidence boxes and change defect coverage and grade. Classifier and detector scores are not calibrated to each other; this is an operational cutoff, not an accuracy guarantee.</small>
+        </div>
         <button id="inspect-btn" class="primary">Inspect ear</button>
         <span id="dz-status" class="status"></span>
       </div>
@@ -54,7 +62,6 @@
         </div>
         <div class="annotated-head">
           <div class="variety-badge" id="variety-badge"><span id="variety-label"></span></div>
-          <div class="conf" id="overall-conf"></div>
           <div class="date" id="inspection-date"></div>
         </div>
       </div>
@@ -89,10 +96,10 @@
         </div>
       </div>
 
-      <div class="card util-card">
-        <span class="util-label">Recommended use</span>
-        <span class="util-value" id="util-value"></span>
-        <p id="util-reason" class="util-reason"></p>
+      <div id="recommendations-card" class="card recommendations-card hidden">
+        <h2>Advisory recommendations</h2>
+        <p id="recommendations-summary" class="recommendations-summary"></p>
+        <div id="recommendations-list" class="recommendations-list"></div>
       </div>
 
       <div class="card">

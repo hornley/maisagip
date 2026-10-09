@@ -79,7 +79,7 @@ def _merge_class(dets, n_views, ear_areas):
     }
 
 
-def merge_views(views):
+def merge_views(views, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
     if not views:
         raise ValueError("At least one image is required.")
 
@@ -87,6 +87,18 @@ def merge_views(views):
     varieties = [v["variety"] for v in views]
 
     counts = Counter(v["class"] for v in varieties)
+    disagreement = len(counts) > 1
+    disagreement_classes = sorted(counts)
+    confident_views = defaultdict(list)
+    for view_idx, variety_view in enumerate(varieties):
+        if float(variety_view["confidence"]) >= float(confidence_threshold):
+            confident_views[variety_view["class"]].append(view_idx + 1)
+    confident_disagreement = len(confident_views) > 1
+    conflicts = sorted(
+        (view_number, cls)
+        for cls, view_numbers in confident_views.items()
+        for view_number in view_numbers
+    )
     top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
     max_count = top[0][1]
     tied_classes = {cls for cls, count in counts.items() if count == max_count}
@@ -124,6 +136,12 @@ def merge_views(views):
     return {
         "view_count": n,
         "variety": variety,
+        "variety_disagreement": {
+            "present": disagreement,
+            "confident": confident_disagreement,
+            "classes": disagreement_classes,
+            "conflicts": conflicts,
+        },
         "defects": merged_defects,
         "defect_coverage": round(min(total_coverage, 1.0), 4),
         "severe_present": bool(severe_present),

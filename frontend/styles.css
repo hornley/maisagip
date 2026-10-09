@@ -497,6 +497,12 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .pthumb-cap { font-size: 0.68rem; color: var(--faint); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-list { margin-top: 14px; font-size: 0.86rem; font-weight: 600; color: var(--brand-700); }
 
+.confidence-control { width: 100%; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.confidence-control label { display: flex; justify-content: space-between; gap: 10px; font-size: 0.82rem; font-weight: 750; color: var(--ink-soft); }
+.confidence-control output { color: var(--brand-700); font-family: var(--font-mono); }
+.confidence-control input { width: 100%; accent-color: var(--brand-700); }
+.confidence-control small { color: var(--faint); font-size: 0.74rem; line-height: 1.45; }
+
 .result { margin-top: 22px; display: flex; flex-direction: column; gap: 16px; }
 .card { padding: 20px; }
 .card h2 { font-size: 1rem; font-weight: 750; letter-spacing: -0.01em; color: var(--ink-soft); margin-bottom: 12px; }
@@ -508,13 +514,15 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .annotated img { width: 100%; border-radius: var(--radius-sm); display: block; }
 .annotation-hotspots { position: absolute; inset: 0; pointer-events: none; }
 .annotation-hotspot {
-  position: absolute; padding: 0; border: 0; background: transparent;
+  position: absolute; padding: 0; border: 2px solid var(--brand-500); background: transparent;
   pointer-events: auto; cursor: help;
 }
 .annotation-hotspot.ear-hotspot { z-index: 1; }
 .annotation-hotspot.defect-hotspot { z-index: 3; }
+.annotation-hotspot.defect-hotspot { border-color: var(--danger); }
 .annotation-hotspot:hover, .annotation-hotspot:focus-visible {
   outline: 3px solid white; outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--ink);
 }
 .annotation-hotspot.ear-hotspot:hover,
 .annotation-hotspot.ear-hotspot:focus-visible { z-index: 2; }
@@ -558,7 +566,7 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
 .view-card { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); overflow: hidden; }
 .view-card img { width: 100%; height: 120px; object-fit: cover; display: block; }
-.view-card figcaption { font-size: 0.72rem; color: var(--faint); padding: 6px 8px; }
+.view-card figcaption { font-size: 0.72rem; color: var(--faint); padding: 6px 8px; line-height: 1.45; text-align: center; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -576,6 +584,19 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .util-label { font-size: 0.8rem; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .util-value { font-weight: 900; font-size: 1.5rem; color: var(--brand-900); text-transform: capitalize; }
 .util-reason { font-size: 0.9rem; color: var(--ink); }
+
+.recommendations-card { display: flex; flex-direction: column; gap: 10px; }
+.recommendations-summary { color: var(--ink-soft); font-size: 0.9rem; }
+.recommendations-list { display: grid; gap: 9px; }
+.recommendation-item { padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface-2); }
+.recommendation-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: var(--brand-900); }
+.recommendation-status { border-radius: var(--radius-pill); padding: 3px 8px; font-size: 0.68rem; font-weight: 800; text-transform: capitalize; }
+.status-candidate { background: var(--ok-bg); color: var(--ok); }
+.status-requires_check { background: var(--warn-bg); color: var(--warn); }
+.status-unavailable { background: var(--danger-bg); color: var(--danger); }
+.recommendation-reason, .recommendation-checks, .recommendation-price { margin-top: 5px; font-size: 0.82rem; }
+.recommendation-reason { color: var(--ink); }
+.recommendation-checks, .recommendation-price { color: var(--muted); }
 
 /* ==========================================================================
    Responsive

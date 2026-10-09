@@ -77,6 +77,13 @@ def test_high_confidence_no_reinspection():
     assert result["needs_reinspection"] is False
 
 
+def test_request_threshold_controls_variety_warning_without_changing_defect_cutoff():
+    result = engine.evaluate(0.55, 0.0, False, 1.0, [0.36], confidence_threshold=0.6)
+    assert result["needs_reinspection"] is True
+    result = engine.evaluate(0.55, 0.0, False, 1.0, [0.35], confidence_threshold=0.5)
+    assert result["needs_reinspection"] is False
+
+
 def test_grade_reasons_are_explainable():
     result = grade(0.0)
     summary = "\n".join(result["grade_reasons"])

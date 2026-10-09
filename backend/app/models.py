@@ -82,7 +82,7 @@ class RealClassifier:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
 
-    def predict(self, image):
+    def predict(self, image, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
         import torch
         from PIL import Image
 
@@ -100,7 +100,7 @@ class RealDetector:
 
         self.model = YOLO(str(weights_path))
 
-    def predict(self, image):
+    def predict(self, image, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
         from PIL import Image
 
         detections = []
@@ -110,7 +110,11 @@ class RealDetector:
         # inference consistent with file-based inference.
         source = Image.fromarray(image).convert("RGB")
         results = self.model.predict(
-            source, imgsz=config.DETECTOR_IMAGE_SIZE, conf=0.25, verbose=False
+            source,
+            imgsz=config.DETECTOR_IMAGE_SIZE,
+            conf=float(confidence_threshold),
+            iou=config.DETECTOR_NMS_IOU,
+            verbose=False,
         )
         if not results:
             return detections
@@ -166,7 +170,7 @@ def get_detector():
     return provider
 
 
-def classify_variety(image):
+def classify_variety(image, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
     mode, classifier = get_classifier()
     if mode == "real":
         variety, conf = classifier.predict(image)
@@ -175,11 +179,15 @@ def classify_variety(image):
     return [{"class": variety, "confidence": round(float(conf), 4)}]
 
 
-def detect_defects(image):
+def detect_defects(image, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
     mode, detector = get_detector()
     if mode == "real":
-        return detector.predict(image)
-    return _demo_boxes(image)
+        return detector.predict(image, confidence_threshold)
+    return [
+        detection
+        for detection in _demo_boxes(image)
+        if float(detection["confidence"]) >= float(confidence_threshold)
+    ]
 
 
 def provider_modes():

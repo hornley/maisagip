@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from . import config
+from .recommendations import build_recommendations
 
 REPORTS = {}
 
@@ -85,10 +86,11 @@ def _save(report_id, suffix, image: np.ndarray):
     return path
 
 
-def build_report(per_view, merged, engine_result):
+def build_report(per_view, merged, engine_result, confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD):
     from datetime import datetime
 
     report_id = new_report_id()
+    inspection_date = datetime.now()
 
     views_out = []
     annotated_views = []
@@ -118,7 +120,7 @@ def build_report(per_view, merged, engine_result):
 
     REPORTS[report_id] = {
         "id": report_id,
-        "inspection_date": datetime.now().isoformat(timespec="seconds"),
+        "inspection_date": inspection_date.isoformat(timespec="seconds"),
         "variety": merged["variety"],
         "defects": merged["defects"],
         "defect_coverage": merged["defect_coverage"],
@@ -127,6 +129,17 @@ def build_report(per_view, merged, engine_result):
         "grade": engine_result,
         "views": views_out,
         "view_count": merged["view_count"],
+        "confidence_threshold": confidence_threshold,
+        "warnings": [
+            "Views disagree on variety; reinspection is recommended."
+        ] if merged["variety_disagreement"]["present"] else [],
+        "recommendations": build_recommendations(
+            engine_result["grade_label"],
+            merged["variety"]["class"],
+            {"defects": merged["defects"], "coverage": merged["defect_coverage"]},
+            merged["traits"],
+            inspection_date=inspection_date.date(),
+        ),
         "image_url": f"/report/{report_id}/views/grid/image",
     }
     return REPORTS[report_id]

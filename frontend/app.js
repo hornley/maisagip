@@ -7,8 +7,14 @@ const inspectBtn = document.getElementById("inspect-btn");
 const statusEl = document.getElementById("dz-status");
 const errorEl = document.getElementById("error");
 const resultEl = document.getElementById("result");
+const confidenceThreshold = document.getElementById("confidence-threshold");
+const confidenceThresholdValue = document.getElementById("confidence-threshold-value");
 
 let selectedFiles = [];
+
+confidenceThreshold.addEventListener("input", () => {
+  confidenceThresholdValue.textContent = `${confidenceThreshold.value}%`;
+});
 
 dropzone.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
@@ -61,6 +67,7 @@ inspectBtn.addEventListener("click", async () => {
   statusEl.textContent = "Analyzing ear…";
   const form = new FormData();
   selectedFiles.forEach((f) => form.append("files", f));
+  form.append("confidence_threshold", String(Number(confidenceThreshold.value) / 100));
   try {
     const res = await fetch("/inspect", { method: "POST", body: form });
     const data = await res.json();
@@ -83,12 +90,22 @@ function pct(v) {
   return `${Math.round((v ?? 0) * 100)}%`;
 }
 
+function varietyDisplayName(className) {
+  const names = {
+    yellow_sweet_corn: "Sweet Fortune",
+    white_corn: "Sweet Pearl",
+  };
+  if (typeof className !== "string") return "Unknown variety";
+  return Object.prototype.hasOwnProperty.call(names, className)
+    ? names[className]
+    : className.replace(/_/g, " ");
+}
+
 function render(report) {
   resultEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
 
-  document.getElementById("variety-label").textContent = report.variety.class.replace("_", " ");
-  document.getElementById("overall-conf").textContent = `Overall confidence ${pct(report.grade.confidence)}`;
+  document.getElementById("variety-label").textContent = varietyDisplayName(report.variety.class);
   document.getElementById("inspection-date").textContent =
     `Inspected ${report.inspection_date} · ${report.view_count} view(s)`;
   const annotatedImage = document.getElementById("annotated");
@@ -98,7 +115,9 @@ function render(report) {
   const warning = document.getElementById("warning");
   warning.classList.add("hidden");
   if (report.grade.needs_reinspection) {
-    warning.textContent = "Low prediction confidence detected — consider re-inspecting with clearer photos.";
+    warning.textContent = report.warnings?.length
+      ? report.warnings.join(" ")
+      : "Low prediction confidence detected — consider re-inspecting with clearer photos.";
     warning.classList.remove("hidden");
   }
 
@@ -136,13 +155,11 @@ function render(report) {
     });
   }
 
-  document.getElementById("ear-size").textContent =
-    `${report.traits.ear_size} (${pct(report.traits.ear_size_fraction)})`;
+  document.getElementById("ear-size").textContent = report.traits.ear_size;
   document.getElementById("completeness").textContent = pct(report.traits.kernel_completeness);
   document.getElementById("completeness-bar").style.width = pct(report.traits.kernel_completeness);
 
-  document.getElementById("util-value").textContent = report.grade.utilization.recommendation.replace(/_/g, " ");
-  document.getElementById("util-reason").textContent = report.grade.utilization.reason;
+  renderRecommendations(report.recommendations);
 
   const viewsBox = document.getElementById("views");
   viewsBox.innerHTML = "";
@@ -152,10 +169,16 @@ function render(report) {
     const img = document.createElement("img");
     img.src = v.image_url;
     img.alt = `view ${v.view}`;
-    const defects = v.defects.filter((d) => d.class !== "corn_ear");
     const cap = document.createElement("figcaption");
-    cap.textContent = `View ${v.view} · ${v.variety.class.replace("_", " ")}` +
-      (defects.length ? ` · ${defects.map((d) => d.class.replace(/_/g, " ")).join(", ")}` : " · clean");
+    const lines = [
+      `View ${v.view}`,
+      varietyDisplayName(v.variety.class),
+      `Kernel completeness: ${pct(v.traits.kernel_completeness)}`,
+    ];
+    lines.forEach((line, index) => {
+      if (index) cap.appendChild(document.createElement("br"));
+      cap.appendChild(document.createTextNode(line));
+    });
     card.append(img, cap);
     viewsBox.appendChild(card);
   });
@@ -166,6 +189,87 @@ function render(report) {
   chip.classList.remove("hidden");
 
   resultEl.scrollIntoView({ behavior: "smooth" });
+}
+
+function formatLabel(value) {
+  if (typeof value !== "string" || !value) return "Not provided";
+  return value.replace(/_/g, " ");
+}
+
+function renderRecommendations(recommendations) {
+  const card = document.getElementById("recommendations-card");
+  const summary = document.getElementById("recommendations-summary");
+  const list = document.getElementById("recommendations-list");
+  card.classList.add("hidden");
+  summary.textContent = "";
+  list.replaceChildren();
+  if (!recommendations || typeof recommendations !== "object") return;
+
+  const options = Array.isArray(recommendations)
+    ? recommendations
+    : recommendations.options || recommendations.candidates || recommendations.items ||
+      (recommendations.label || recommendations.name || recommendations.use ? [recommendations] : []);
+  if (recommendations.advisory || recommendations.summary || recommendations.reason) {
+    summary.textContent = recommendations.advisory || recommendations.summary || recommendations.reason;
+  }
+  if (!Array.isArray(options)) return;
+
+  options.forEach((option) => {
+    if (!option || typeof option !== "object") return;
+    const item = document.createElement("article");
+    item.className = "recommendation-item";
+
+    const head = document.createElement("div");
+    head.className = "recommendation-head";
+    const label = document.createElement("strong");
+    label.textContent = option.label || option.name || option.use || "Recommendation";
+    head.appendChild(label);
+    if (option.status) {
+      const status = document.createElement("span");
+      status.className = `recommendation-status status-${String(option.status).toLowerCase().replace(/[^a-z0-9_-]/g, "-")}`;
+      status.textContent = formatLabel(option.status);
+      head.appendChild(status);
+    }
+    item.appendChild(head);
+
+    if (option.reason) {
+      const reason = document.createElement("p");
+      reason.className = "recommendation-reason";
+      reason.textContent = option.reason;
+      item.appendChild(reason);
+    }
+    const checks = option.required_external_checks || option.required_checks || option.checks;
+    if (Array.isArray(checks) && checks.length) {
+      const checksEl = document.createElement("p");
+      checksEl.className = "recommendation-checks";
+      checksEl.textContent = `Requires: ${checks.join("; ")}`;
+      item.appendChild(checksEl);
+    }
+    const price = option.price || option.price_estimate;
+    if (price && typeof price === "object") {
+      const priceEl = document.createElement("p");
+      priceEl.className = "recommendation-price";
+      const low = price.low ?? price.min;
+      const high = price.high ?? price.max;
+      const currency = price.currency || "PHP";
+      const range = low != null && high != null ? `${currency} ${low}–${high}` : price.value;
+      const unit = price.unit ? ` / ${price.unit}` : "";
+      const market = price.market ? ` · ${price.market}` : "";
+      const provenance = price.provenance || {};
+      const source = price.source || provenance.source;
+      const effectiveDate = price.effective_date || provenance.effective_date;
+      const validThrough = price.valid_through || provenance.valid_through;
+      const sourceText = source ? ` · source: ${source}` : "";
+      const effective = effectiveDate ? ` · effective ${effectiveDate}` : "";
+      const validity = validThrough ? ` · valid through ${validThrough}` : "";
+      const uncertainty = price.uncertainty ? ` · ${price.uncertainty}` : "";
+      priceEl.textContent = range ? `${range}${unit}${market}${sourceText}${effective}${validity}${uncertainty}` : "";
+      if (priceEl.textContent) item.appendChild(priceEl);
+    }
+    list.appendChild(item);
+  });
+
+  if (summary.textContent || list.childElementCount) card.classList.remove("hidden");
 }
 
 function renderAnnotationHotspots(report) {

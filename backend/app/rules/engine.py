@@ -58,7 +58,16 @@ class GradeEngine:
                 return rule["recommend"], rule["reason"]
         return "reject", "No applicable utilization rule."
 
-    def evaluate(self, variety_conf, coverage, severe_present, completeness, defect_confs=()):
+    def evaluate(
+        self,
+        variety_conf,
+        coverage,
+        severe_present,
+        completeness,
+        defect_confs=(),
+        confidence_threshold=config.DEFAULT_CONFIDENCE_THRESHOLD,
+        variety_disagreement=False,
+    ):
         grade, grade_label, grade_reasons = self._assign_grade(coverage)
         utilization, utilization_reason = self._choose_utilization(coverage, severe_present)
 
@@ -68,9 +77,9 @@ class GradeEngine:
             overall = variety_conf
         overall = round(min(float(overall), 0.99), 4)
 
-        low_conf = variety_conf < config.NEEDS_REINSPECTION_CONF
+        low_conf = variety_conf < confidence_threshold
         low_defect_conf = any(c < LOW_DEFECT_CONFIDENCE for c in defect_confs)
-        needs_reinspection = low_conf or low_defect_conf
+        needs_reinspection = low_conf or low_defect_conf or variety_disagreement
 
         return {
             "grade": grade,
