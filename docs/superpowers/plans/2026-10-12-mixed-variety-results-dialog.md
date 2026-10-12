@@ -1,253 +1,324 @@
 # Mixed Variety Results and Inspection Summary Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Show navigable per-view results for confident mixed-variety uploads and simplify successful inspection summaries and eligible outlet recommendations.
+**Goal:** Show each confidently mismatched upload's own variety, grade, and defects in a navigable dialog, while applying the approved inspection-summary and recommendation presentation rules.
 
-**Architecture:** Preserve the existing mixed-variety rejection and enrich only that HTTP 400 response with JSON-safe per-view results. The frontend pairs those results with the selected upload previews in an accessible modal. Successful report inference remains unchanged; grade explanations, summary text, and outlet recommendations are simplified at their existing backend/frontend boundaries.
+**Architecture:** Keep the existing confident-variety rejection and structured `view_results` response. Derive each mismatch view's grade using the existing grade thresholds and only that view's detections; add a small normalized JPEG preview to each response item so the browser need not decode HEIC/HEIF. Keep successful-report inference unchanged while simplifying its displayed grade criteria, timestamp, deduplicated defect rows, and eligibility-filtered recommendations.
 
-**Tech Stack:** Python, FastAPI, pytest, vanilla JavaScript, HTML, CSS.
+**Tech Stack:** Python, FastAPI, Pillow, pytest, vanilla JavaScript, Node's built-in test runner, HTML, CSS.
 
 ---
 
 ## File map
 
-- `backend/app/pipeline.py` — attach per-view predictions and detections to the confident mixed-variety exception.
-- `backend/app/main.py` — return structured mismatch data while preserving the current `detail` text and HTTP 400 status.
-- `backend/tests/test_pipeline.py` — assert the mismatch response includes ordered per-view variety and defect data.
-- `frontend/index.html` — add modal markup for per-view mismatch results.
-- `frontend/app.js` — validate and render mismatch payloads, manage preview URLs and modal navigation, and simplify normal report rendering.
-- `frontend/styles.css` — style a responsive, keyboard-accessible mismatch dialog and the simplified recommendations list.
-- `backend/app/rules/engine.py` — emit only the assigned grade's met criterion, or a concise Reject outcome.
-- `backend/tests/test_rules.py` — assert that failed higher-grade criteria are omitted.
-- `backend/app/recommendations.py` — filter outlet options by grade and mold/ear-decay restrictions.
-- `backend/tests/test_recommendations.py` — assert exact allowed outlet sets and that ineligible options are omitted.
+- `backend/app/image_io.py` — add a bounded JPEG preview encoder for already-decoded RGB image data.
+- `backend/app/pipeline.py` — attach one independently calculated grade and preview bytes/data to each confident-mismatch view result.
+- `backend/app/main.py` — serialize preview data as a JSON-safe data URL while preserving HTTP 400 and the current `detail`.
+- `backend/app/recommendations.py` and `backend/app/rules/config_recommendations.json` — enforce eligible recommendation sets and the Reject override.
+- `backend/app/rules/engine.py` — return only the assigned grade criterion, or a concise Reject criterion.
+- `frontend/index.html`, `frontend/app.js`, `frontend/styles.css` — render normalized previews and inline per-view grade; simplify successful inspection details and the Recommendation card.
+- `backend/tests/test_image_io.py`, `backend/tests/test_pipeline.py`, `backend/tests/test_recommendations.py`, `backend/tests/test_rules.py` — cover preview encoding, response data, grade separation, recommendation eligibility, and criterion text.
+- `frontend/tests/app.test.cjs` — cover mismatch rendering/navigation, no canonical-class or confidence display, successful result labels/date, and recommendation output.
 
-## Task 1: Return per-view results with confident variety mismatch errors
+## Task 1: Return self-contained, independently graded mismatch results
 
 **Files:**
 
+- Modify: `backend/app/image_io.py`
 - Modify: `backend/app/pipeline.py`
 - Modify: `backend/app/main.py`
+- Test: `backend/tests/test_image_io.py`
 - Test: `backend/tests/test_pipeline.py`
 
-- [ ] **Step 1: Extend the existing mixed-variety API regression test**
+- [ ] **Step 1: Add failing JPEG-preview tests**
 
-In `test_confident_mixed_variety_views_return_actionable_400`, make the mocked detector return a different visible defect for each view. Keep the two existing confident, different variety predictions. Assert the response remains HTTP 400, retains the human-readable `detail`, and includes results in upload order:
+Add tests for `encode_preview_jpeg(image, max_dimension=640, quality=80)` using RGB arrays with landscape, portrait, and small dimensions. Decode each result with Pillow and assert JPEG format, RGB mode, preserved aspect ratio, no dimension over 640 pixels, and unchanged dimensions for already-small input. Add a HEIC fixture via `pytest.importorskip("pillow_heif")`; decode it through the existing `decode_image_bytes` path and assert the preview encoder returns browser-renderable JPEG bytes.
+
+- [ ] **Step 2: Run the new image tests and confirm they fail**
+
+Run: `.venv/bin/python -m pytest backend/tests/test_image_io.py -q`
+
+Expected: the new test fails because `encode_preview_jpeg` does not exist.
+
+- [ ] **Step 3: Implement the bounded preview encoder**
+
+Implement `encode_preview_jpeg` in `backend/app/image_io.py`. Convert decoded RGB pixels to a fresh Pillow RGB image, thumbnail in place using Pillow's aspect-ratio-preserving resampling with a 640-pixel longest-side limit, then save as JPEG at quality 80 without EXIF metadata. Do not modify `normalize_image_bytes` or the original uploaded file.
 
 ```python
-payload = res.json()
-assert res.status_code == 400
-assert "different corn varieties" in payload["detail"]
-assert [view["view"] for view in payload["view_results"]] == [1, 2]
-assert [view["variety"]["class"] for view in payload["view_results"]] == [
-    "yellow_sweet_corn",
-    "white_corn",
-]
-assert [view["defects"][0]["class"] for view in payload["view_results"]] == [
-    "mold",
-    "missing_kernels",
-]
+def encode_preview_jpeg(image: np.ndarray | Image.Image, max_dimension: int = 640,
+                       quality: int = 80) -> bytes:
+    source = Image.fromarray(image) if isinstance(image, np.ndarray) else image
+    preview = source.convert("RGB").copy()
+    preview.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+    output = BytesIO()
+    preview.save(output, format="JPEG", quality=quality, exif=b"")
+    return output.getvalue()
 ```
 
-- [ ] **Step 2: Run the focused regression to confirm it fails**
+- [ ] **Step 4: Verify preview tests pass**
 
-Run: `.venv/bin/python -m pytest backend/tests/test_pipeline.py::test_confident_mixed_variety_views_return_actionable_400 -q`
+Run: `.venv/bin/python -m pytest backend/tests/test_image_io.py -q`
 
-Expected: the current response has no `view_results` field.
+Expected: PASS; the HEIC test is skipped only when `pillow_heif` is unavailable.
 
-- [ ] **Step 3: Carry JSON-safe view summaries on the exception**
+- [ ] **Step 5: Add failing per-view-grade response assertions**
 
-Give `InconsistentInspectionInput` a `view_results` attribute. When `inspect_ear` detects a confident disagreement, construct one result per `per_view` item with one-based `view`, the classifier's `variety`, and that view's already threshold-filtered `detections` under `defects`. Raise the exception with the existing message and this ordered list. Keep the successful report path and low-confidence disagreement path unchanged.
+Extend `test_confident_mixed_variety_views_return_actionable_400` to assert upload-order results contain `view`, `variety`, threshold-filtered `defects`, `grade`, and a JPEG data URL. Use distinct defect boxes/areas so the views receive different grades. Assert each grade equals applying the existing grade rule to that view alone, independent of the other view. For equal coverage, assert adding `mold` does not alter grade assignment because safety rules affect recommendations only.
 
-- [ ] **Step 4: Preserve the mismatch text and add structured response data**
+- [ ] **Step 6: Calculate grades and include normalized previews**
 
-In the `InconsistentInspectionInput` branch of `/inspect`, return a 400 JSON response with both fields:
+Before raising `InconsistentInspectionInput`, process each individual `per_view` entry in isolation using `merge_views([view], confidence_threshold)`, then call the existing `GradeEngine.evaluate` with that isolated coverage, severe flag, variety confidence, completeness, and defect confidences. Include `grade: engine_result["grade_label"]` (one of `Extra Class`, `Class I`, `Class II`, or `Reject`) in the view result. Encode the corresponding decoded image using `encode_preview_jpeg`; serialize it from the `/inspect` mismatch handler as `preview_data_url: "data:image/jpeg;base64,..."`. Preserve the current error `detail`, status 400, classifier result, and defect detections. Do not change successful reports or merge-based inspection grading.
 
 ```python
-return JSONResponse(
-    status_code=400,
-    content={"detail": str(exc), "view_results": exc.view_results},
+isolated = merge_views([view], confidence_threshold)
+view_grade = _engine.evaluate(
+    view["variety"]["confidence"], isolated["defect_coverage"],
+    isolated["severe_present"], view["traits"]["kernel_completeness"],
+    [d["confidence"] for d in view["detections"] if d["class"] != "corn_ear"],
+    confidence_threshold=confidence_threshold,
 )
+result["grade"] = view_grade["grade_label"]
 ```
 
-Import `JSONResponse` if it is not already imported. Keep all other validation errors on their existing response path.
+In the HTTP 400 serialization, Base64-encode preview bytes and emit a data URL without putting raw bytes in JSON:
 
-- [ ] **Step 5: Run the focused regression and commit**
+```python
+preview_data_url = "data:image/jpeg;base64," + base64.b64encode(preview_bytes).decode("ascii")
+```
 
-Run: `.venv/bin/python -m pytest backend/tests/test_pipeline.py::test_confident_mixed_variety_views_return_actionable_400 -q`
+- [ ] **Step 7: Run focused backend tests and commit**
 
-Expected: PASS with two ordered results, including each variety and the mocked defects.
+Run:
 
 ```bash
-git add backend/app/pipeline.py backend/app/main.py backend/tests/test_pipeline.py
-git commit -m "feat: include per-view results in variety conflicts"
+.venv/bin/python -m pytest backend/tests/test_image_io.py backend/tests/test_pipeline.py -q
 ```
 
-## Task 2: Add the per-view mismatch dialog
+Expected: PASS; each view has a valid renderable JPEG preview and a grade computed from its own defect coverage.
+
+```bash
+git add backend/app/image_io.py backend/app/pipeline.py backend/app/main.py backend/tests/test_image_io.py backend/tests/test_pipeline.py
+git commit -m "feat: include independent view grades and previews"
+```
+
+## Task 2: Render the per-view mismatch dialog as approved
 
 **Files:**
 
 - Modify: `frontend/index.html`
 - Modify: `frontend/app.js`
 - Modify: `frontend/styles.css`
+- Test: `frontend/tests/app.test.cjs`
 
-- [ ] **Step 1: Add dialog structure to the Inspect page**
+- [ ] **Step 1: Add failing frontend tests for view grade and image source**
 
-Add a hidden modal container with `role="dialog"`, `aria-modal="true"`, and a labelled heading. Include the mismatch explanation, image, selected view number, friendly and canonical variety names, defect list, no-defects message, Previous, Next, and Close controls. Do not add any variety confidence field.
+Update structured-response fixtures to include grade and `preview_data_url`. Assert malformed grade or non-JPEG preview data makes the response ineligible for the structured dialog. Assert a valid response displays the matching server-provided preview URL, friendly variety name, class inline beside the variety, defects, and navigation state. Assert the canonical class, a separate “Grade” label, and variety confidence are not rendered. Keep tests for empty defects, thumbnail selection, Previous/Next boundaries, closing, and stale responses.
 
-- [ ] **Step 2: Retain selected preview URLs for the dialog**
+- [ ] **Step 2: Run the frontend suite to confirm failures**
 
-When `selectFiles(files)` creates each preview URL, keep it in an array parallel to `selectedFiles`. Revoke prior object URLs when a new selection replaces them. Reuse the matching URL for each dialog view; do not upload or embed image bytes a second time.
+Run: `node --test frontend/tests/app.test.cjs`
 
-- [ ] **Step 3: Recognize only valid structured mismatch responses**
+Expected: FAIL on the absent preview/grade checks and current canonical-class markup.
 
-In the failed `/inspect` response path, check that `view_results` is an array and that each entry has an integer `view`, a string `variety.class`, and an array `defects`. If valid and aligned with selected uploads, open the modal. Otherwise, use `showError(data.detail || ...)` as today. Clear any prior dialog state when the user selects new files.
+- [ ] **Step 3: Update the dialog markup and renderer**
 
-- [ ] **Step 4: Render and navigate results accessibly**
+Remove the canonical-class output element. Add a grade chip beside the friendly variety name within the existing “Detected variety” section; do not add a “Grade” caption. Validate that every result aligns with upload order and has a supported class label and JPEG data URL before opening the structured dialog. Set the main image and thumbnail sources from the response data URL, not `URL.createObjectURL` for the uploaded file. Continue to exclude `corn_ear` from visible defects and preserve close/focus behavior.
 
-Render the current uploaded image, one-based view number, friendly variety name plus readable canonical class, and defect-class counts. Exclude the `corn_ear` detector fallback from the defect list because it marks the ear boundary rather than a defect. Show a clear “No visible defects detected” state when no defect classes remain. Previous and Next update the image and data together and are disabled at the first and last view. Focus the dialog on open, close on Escape, and return focus to `inspectBtn` when dismissed. On close, leave the original mismatch text in the inline error alert.
-
-- [ ] **Step 5: Style the dialog responsively**
-
-Use the existing green, cream, and gold design tokens. Match the approved mockup: image and view thumbnails alongside variety and defects on wide screens; stack the image and details on narrow screens. Keep all controls keyboard-focusable and retain visible focus styling.
-
-- [ ] **Step 6: Commit the dialog slice**
-
-```bash
-git add frontend/index.html frontend/app.js frontend/styles.css
-git commit -m "feat: show per-view mixed variety results"
+```html
+<div class="mismatch-variety">
+  <span class="mismatch-label">Detected variety</span>
+  <div class="mismatch-variety-line">
+    <strong id="mismatch-variety-name"></strong>
+    <span id="mismatch-grade"></span>
+  </div>
+</div>
 ```
 
-## Task 3: Simplify successful inspection details and grade explanations
+- [ ] **Step 4: Run frontend tests and commit**
+
+Run: `node --test frontend/tests/app.test.cjs`
+
+Expected: PASS; each view switches image, variety, inline grade, and defects together, with no canonical label or classifier confidence.
+
+```bash
+git add frontend/index.html frontend/app.js frontend/styles.css frontend/tests/app.test.cjs
+git commit -m "feat: show per-view grade in mismatch results"
+```
+
+## Task 3: Simplify successful inspection details and grade criteria
 
 **Files:**
 
-- Modify: `frontend/app.js`
 - Modify: `backend/app/rules/engine.py`
+- Modify: `frontend/app.js`
 - Test: `backend/tests/test_rules.py`
+- Test: `frontend/tests/app.test.cjs`
 
-- [ ] **Step 1: Update grade-reason expectations**
+- [ ] **Step 1: Add exact grade-reason tests**
 
-Keep the passing-grade explanation test. Use 6% coverage to assert the single Class II criterion mentions 10% but contains neither “Fails” nor the failed Class I 5% threshold. Add a 26.43% Reject case that checks for a concise rejection outcome and no `Fails` entries.
+Update `backend/tests/test_rules.py`: for a passing grade, assert there is exactly one “Meets … criteria” reason; for a Class II result at 6% coverage, assert the reason mentions its 10% criterion and does not mention “Fails” or the failed Class I threshold; for Reject at 26.43%, assert a concise Reject reason and no failed-grade list.
 
-- [ ] **Step 2: Emit only the assigned criterion from the grade engine**
+- [ ] **Step 2: Implement met-criterion-only grade reasons**
 
-In `_assign_grade`, return immediately with one “Meets … criteria” reason when a grade passes; do not append failure strings while evaluating preceding grades. If all classes fail, return a single Reject reason that states the coverage and the Class II cutoff without enumerating failed classes.
+In `_assign_grade`, return the single passing grade criterion as soon as its threshold passes. If no grade passes, return one Reject reason using the existing Class II cutoff. Keep grade thresholds, coverage, and assigned class unchanged. Each returned reasons list contains exactly one string, such as `Meets Class II criteria: 6% coverage is below 10%.` or `Reject: 26.43% coverage is at or above the Class II cutoff of 10%.`
 
-- [ ] **Step 3: Simplify merged defect labels and inspection time**
+- [ ] **Step 3: Test and implement human-readable inspection summary labels**
 
-In `render(report)`, render merged defect metadata as the deduplicated count only, such as `×2`; remove the coverage percentage and `views ...` suffix. Format the inspection timestamp using `Intl.DateTimeFormat` with medium date and short time styles, and fall back to the raw timestamp if it cannot be parsed. Keep the existing view count after the formatted timestamp, for example `Inspected Oct 12, 2026, 10:45 AM · 2 views`.
+Update frontend tests to check that inspection ISO text such as `2026-10-12T10:45:44` renders as a localized date and short time without the `T` or seconds; invalid date input continues to display its raw string. Assert a deduplicated defect row contains only its class and count (for example `Mold ×2`), with neither coverage percentage nor `views 1`. Keep the separate view count after the inspection timestamp if the current summary includes it.
 
-- [ ] **Step 4: Run the focused grade tests and commit**
+In `frontend/app.js`, use `Intl.DateTimeFormat` with medium date and short time styles for the inspection instant. Render merged-defect class and deduplicated count only; remove coverage and contributing-view suffixes from those rows.
 
-Run: `.venv/bin/python -m pytest backend/tests/test_rules.py -q`
+```js
+function formatInspectionDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium", timeStyle: "short",
+  }).format(date);
+}
+```
 
-Expected: PASS; normal grades have only their matching met criterion, and Reject has no failed-class list.
+- [ ] **Step 4: Run focused tests and commit**
+
+Run:
 
 ```bash
-git add backend/app/rules/engine.py backend/tests/test_rules.py frontend/app.js
+.venv/bin/python -m pytest backend/tests/test_rules.py -q
+node --test frontend/tests/app.test.cjs
+```
+
+Expected: PASS; assigned grades are unchanged, only the met criterion is shown, timestamps are human-readable, and merged-defect rows omit coverage and view lists.
+
+```bash
+git add backend/app/rules/engine.py backend/tests/test_rules.py frontend/app.js frontend/tests/app.test.cjs
 git commit -m "refine: simplify inspection summary details"
 ```
 
-## Task 4: Filter recommendations by grade and defect policy
+## Task 4: Apply the exact recommendation eligibility rules
 
 **Files:**
 
 - Modify: `backend/app/recommendations.py`
-- Test: `backend/tests/test_recommendations.py`
+- Modify: `backend/app/rules/config_recommendations.json`
+- Modify: `backend/tests/test_recommendations.py`
 
-- [ ] **Step 1: Replace status-oriented tests with eligibility tests**
+- [ ] **Step 1: Add table-driven recommendation expectations**
 
-Add a helper to `backend/tests/test_recommendations.py` that calls `build_recommendations` with the requested grade and defects and returns the option labels:
+Assert these exact label sets:
 
-```python
-def labels(grade, defects=None):
-    result = build_recommendations(
-        grade,
-        "yellow_sweet_corn",
-        defects or [],
-        {"ear_size": "large", "kernel_completeness": 0.96},
-        inspection_date="2026-10-09",
-    )
-    return {option["label"] for option in result["options"]}
+| Grade / condition | Recommendations |
+|---|---|
+| Extra Class | Local Market, Export, Premium Sale, Processed/Canned |
+| Class I | Local Market, Premium Sale, Processed/Canned |
+| Class II | Local Market |
+| Reject | Poultry Feed |
+| Extra Class, Class I, or Class II with mold | Local Market |
+| Extra Class, Class I, or Class II with ear decay | Local Market |
+| Reject with mold and ear decay | Poultry Feed |
 
-assert labels("ExtraClass") == {
-    "Local Market", "Export", "Premium Sale", "Processed/Canned",
-}
-assert labels("ClassI") == {
-    "Local Market", "Premium Sale", "Processed/Canned",
-}
-assert labels("ClassII") == {"Local Market", "Processed/Canned"}
-assert labels("Reject") == set()
-```
+Also assert ineligible labels are absent (not represented with status fields), and every Reject case includes Poultry Feed. Keep validated price-estimate coverage for an eligible outlet.
 
-Add cases showing that either `mold` or `ear_decay` leaves only Local Market for non-Reject grades, and that an unrelated defect does not add outlets excluded by grade. Assert visible options contain no `status`, `reason`, or `required_external_checks` fields. Keep the existing valid-price fixture and assert its `price_estimate` remains on the eligible Local Market option.
-
-- [ ] **Step 2: Implement the eligibility intersection**
-
-In `build_recommendations`, map `ExtraClass`, `ClassI`, and `ClassII` to the allowed channel IDs in the spec. Intersect the configured channel rows with that set. For `Reject`, return no outlet options. When defect names contain `mold` or `ear_decay`, further intersect the eligible set with `{"local_market"}`. Emit only each eligible channel's label; do not emit Candidate, Requires checking, unavailable, reason, or requirement fields.
-
-- [ ] **Step 3: Run recommendation tests and commit**
+- [ ] **Step 2: Run recommendation tests and confirm failures**
 
 Run: `.venv/bin/python -m pytest backend/tests/test_recommendations.py -q`
 
-Expected: PASS for all grade and defect combinations, with disallowed outlets absent from `options`.
+Expected: FAIL for Class II's current Processed/Canned entry and Reject's current empty list.
 
-```bash
-git add backend/app/recommendations.py backend/tests/test_recommendations.py
-git commit -m "feat: filter advisory outlets by grade and defects"
+- [ ] **Step 3: Implement the policy intersection**
+
+Set the allowed grade channels to the table above. For non-Reject grades, intersect with Local Market when `mold` or `ear_decay` is present. For Reject, always return Poultry Feed, even if either safety defect is detected. Emit only eligible recommendation labels and preserve only valid price estimates belonging to an eligible channel. Do not emit Candidate, Requires checking, unavailable, reason, or external-check status fields.
+
+```python
+if grade == "Reject":
+    eligible = {"poultry_feed"}
+else:
+    eligible = GRADE_CHANNELS[grade]
+    if {"mold", "ear_decay"} & defect_classes:
+        eligible = eligible & {"local_market"}
 ```
 
-## Task 5: Render only eligible recommendations
+- [ ] **Step 4: Run recommendation tests and commit**
+
+Run: `.venv/bin/python -m pytest backend/tests/test_recommendations.py -q`
+
+Expected: PASS for every grade/defect combination with no failed option shown.
+
+```bash
+git add backend/app/recommendations.py backend/app/rules/config_recommendations.json backend/tests/test_recommendations.py
+git commit -m "feat: enforce recommendation eligibility rules"
+```
+
+## Task 5: Render only recommendations that pass the policy
 
 **Files:**
 
+- Modify: `frontend/index.html`
 - Modify: `frontend/app.js`
 - Modify: `frontend/styles.css`
+- Test: `frontend/tests/app.test.cjs`
 
-- [ ] **Step 1: Render recommendation labels without status/details**
+- [ ] **Step 1: Add frontend assertions for simple recommendation labels**
 
-Change `renderRecommendations` to read the eligible `options` array and render each option label as a simple list item. When an option contains a validated `price_estimate`, preserve its current human-readable price/source line beneath that label. Do not render status badges, explanatory candidate text, “Requires …” checks, or unavailable markers. Hide the whole Advisory recommendations card when the array is missing or empty.
+Test that the section heading is exactly “Recommendation”; only labels present in `options` render; ineligible options and status/reason/requirement fields are absent; valid price detail remains attached to its eligible label; and the card is hidden when there are no options. Reject is not an empty-options case because backend policy always returns Poultry Feed.
 
-- [ ] **Step 2: Remove unused recommendation detail styles**
+- [ ] **Step 2: Implement the card rendering**
 
-Remove or leave dormant only the styles that are no longer used by the Inspect recommendation markup; do not change Dataset page styles.
+Rename “Advisory recommendations” to “Recommendation.” Render only each supplied eligible option's label and any validated price detail. Do not render advisory prose, status badges, Candidate/Requires checking text, or indicators for omitted options. Hide the card for an empty options list.
 
-- [ ] **Step 3: Commit the recommendation display**
+```js
+recommendationsList.replaceChildren();
+for (const option of recommendations.options) {
+  const item = document.createElement("li");
+  item.textContent = option.label;
+  // Append a price detail only when the existing price validator accepts it.
+  recommendationsList.appendChild(item);
+}
+recommendationsCard.classList.toggle("hidden", recommendations.options.length === 0);
+```
+
+- [ ] **Step 3: Run frontend tests and commit**
+
+Run: `node --test frontend/tests/app.test.cjs`
+
+Expected: PASS; the card contains only eligible labels and optional validated price details.
 
 ```bash
-git add frontend/app.js frontend/styles.css
-git commit -m "refine: show eligible advisory outlets only"
+git add frontend/index.html frontend/app.js frontend/styles.css frontend/tests/app.test.cjs
+git commit -m "refine: show eligible recommendations only"
 ```
 
 ## Task 6: Integrated verification
 
 **Files:**
 
+- Verify: `backend/tests/test_image_io.py`
 - Verify: `backend/tests/test_pipeline.py`
 - Verify: `backend/tests/test_rules.py`
 - Verify: `backend/tests/test_recommendations.py`
-- Verify: Inspect page in a browser with the API running
+- Verify: `frontend/tests/app.test.cjs`
 
-- [ ] **Step 1: Run the focused backend checks**
+- [ ] **Step 1: Run all focused backend tests**
 
 Run:
 
 ```bash
-.venv/bin/python -m pytest \
-  backend/tests/test_pipeline.py \
-  backend/tests/test_rules.py \
-  backend/tests/test_recommendations.py -q
+.venv/bin/python -m pytest backend/tests/test_image_io.py backend/tests/test_pipeline.py backend/tests/test_rules.py backend/tests/test_recommendations.py -q
 ```
 
-Expected: PASS; successful inspection remains 200, confident mixed varieties remain 400 with view results, low-confidence disagreement remains inspectable, and grade/outlet rules match the spec.
+Expected: PASS; existing mismatch guidance/status remains, each result uses only its own view for grading, and all recommendation sets match the spec.
 
-- [ ] **Step 2: Verify the Inspect flow in the browser**
+- [ ] **Step 2: Run frontend tests**
 
-Check one confident mixed-variety upload with at least two files: dialog opens, each view shows its actual preview, friendly/canonical variety, and correct defect counts; Previous/Next update all fields; variety confidence is absent; Escape and Close dismiss the dialog and leave the mismatch guidance visible. Check a normal successful inspection: human-readable date/time, merged defect count without coverage or view numbers, only its met grade criterion, and only grade/defect-eligible recommendation labels. Check a Reject result shows no failed-grade list and no advisory outlets.
+Run: `node --test frontend/tests/app.test.cjs`
 
-- [ ] **Step 3: Inspect the final diff and report results**
+Expected: PASS; modal, navigation, inline variety/grade, date, deduplicated defects, and Recommendation rendering behave as specified.
+
+- [ ] **Step 3: Review the browser flow when model providers are available**
+
+Inspect a multi-file HEIC mismatch and a JPEG/PNG mismatch. Verify real preview images load, the inline class matches each view, visible defects update with navigation, and Previous/Next boundaries and Close/Escape work. Inspect one successful result and confirm date, defect rows, met criterion, and recommendation list. If representative real model outputs are unavailable, report that limitation and rely on API and frontend tests.
+
+- [ ] **Step 4: Inspect final changes without disturbing unrelated files**
 
 Run:
 
@@ -256,4 +327,4 @@ git diff --check
 git status --short
 ```
 
-Confirm the changes are limited to the listed backend, frontend, and focused test files. Report the commands run and any browser scenarios that could not be reproduced with the available model providers.
+Confirm no pre-existing unrelated working-tree changes were staged or reverted, and report focused test results plus any browser scenarios that could not be exercised.
