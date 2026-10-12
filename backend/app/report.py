@@ -99,7 +99,7 @@ def build_report(per_view, merged, engine_result, confidence_threshold=config.DE
             entry["image"],
             entry["detections"],
             entry["variety"]["class"],
-            engine_result["grade"],
+            engine_result["grade_label"],
         )
         annotated_views.append(annotated)
         _save(report_id, f"v{idx}", annotated)
@@ -134,7 +134,7 @@ def build_report(per_view, merged, engine_result, confidence_threshold=config.DE
             "Views disagree on variety; reinspection is recommended."
         ] if merged["variety_disagreement"]["present"] else [],
         "recommendations": build_recommendations(
-            engine_result["grade_label"],
+            engine_result["grade"],
             merged["variety"]["class"],
             {"defects": merged["defects"], "coverage": merged["defect_coverage"]},
             merged["traits"],
