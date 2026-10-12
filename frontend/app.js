@@ -124,6 +124,7 @@ function showMismatchDialog(detail, results) {
   mismatchIndex = 0;
   showError(detail);
   document.getElementById("mismatch-message").textContent = detail;
+  buildMismatchThumbnails();
   renderMismatchView();
   if (!mismatchDialog.open) mismatchDialog.showModal();
   mismatchDialog.focus();
@@ -132,7 +133,7 @@ function showMismatchDialog(detail, results) {
 function renderMismatchView() {
   const result = mismatchResults[mismatchIndex];
   if (!result) return;
-  renderMismatchThumbnails();
+  updateMismatchThumbnailState();
   const image = document.getElementById("mismatch-image");
   image.src = previewUrls[result.view - 1];
   image.alt = `Uploaded image for view ${result.view}`;
@@ -164,7 +165,7 @@ function renderMismatchView() {
   mismatchNext.disabled = mismatchIndex === mismatchResults.length - 1;
 }
 
-function renderMismatchThumbnails() {
+function buildMismatchThumbnails() {
   mismatchThumbnails.replaceChildren();
   previewUrls.forEach((url, index) => {
     const button = document.createElement("button");
@@ -184,6 +185,14 @@ function renderMismatchThumbnails() {
       renderMismatchView();
     });
     mismatchThumbnails.appendChild(button);
+  });
+}
+
+function updateMismatchThumbnailState() {
+  [...mismatchThumbnails.children].forEach((button, index) => {
+    const selected = index === mismatchIndex;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
   });
 }
 
