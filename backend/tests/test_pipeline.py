@@ -238,7 +238,12 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
         {"class": "white_corn", "confidence": 0.9},
     ])
     monkeypatch.setattr(pipeline.models, "classify_variety", lambda image: [next(labels)])
-    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: [])
+
+    defects = iter([
+        [{"class": "mold", "confidence": 0.9, "box": [10, 20, 30, 40]}],
+        [{"class": "missing_kernels", "confidence": 0.85, "box": [50, 60, 70, 80]}],
+    ])
+    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: next(defects))
 
     res = client.post(
         "/inspect",
@@ -249,5 +254,17 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
         data={"confidence_threshold": "0.6"},
     )
     assert res.status_code == 400
-    assert "mixed-variety" in res.json()["detail"] or "different corn varieties" in res.json()["detail"]
-    assert "reinspect" in res.json()["detail"]
+    assert res.json()["detail"] == (
+        "These images appear to show different corn varieties "
+        "(view 1=yellow_sweet_corn, view 2=white_corn). "
+        "Upload views of a single ear/variety, then reinspect."
+    )
+    assert [view["view"] for view in res.json()["view_results"]] == [1, 2]
+    assert [view["variety"]["class"] for view in res.json()["view_results"]] == [
+        "yellow_sweet_corn",
+        "white_corn",
+    ]
+    assert [view["defects"][0]["class"] for view in res.json()["view_results"]] == [
+        "mold",
+        "missing_kernels",
+    ]

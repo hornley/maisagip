@@ -11,6 +11,10 @@ _engine = GradeEngine()
 class InconsistentInspectionInput(ValueError):
     """Raised when confident views identify more than one corn variety."""
 
+    def __init__(self, message, view_results):
+        super().__init__(message)
+        self.view_results = view_results
+
 
 # Keep the provisional name import-compatible for callers of the first slice.
 MixedVarietyError = InconsistentInspectionInput
@@ -70,7 +74,15 @@ def inspect_ear(images_bytes, confidence_threshold=config.DEFAULT_CONFIDENCE_THR
         )
         raise InconsistentInspectionInput(
             "These images appear to show different corn varieties "
-            f"({conflicts}). Upload views of a single ear/variety, then reinspect."
+            f"({conflicts}). Upload views of a single ear/variety, then reinspect.",
+            [
+                {
+                    "view": view_number,
+                    "variety": view["variety"],
+                    "defects": view["detections"],
+                }
+                for view_number, view in enumerate(per_view, start=1)
+            ],
         )
 
     defect_confs = [d["max_conf"] for d in merged["defects"]]

@@ -44,7 +44,10 @@ async def inspect(
     try:
         return inspect_ear(contents, confidence_threshold)
     except InconsistentInspectionInput as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc), "view_results": exc.view_results},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
