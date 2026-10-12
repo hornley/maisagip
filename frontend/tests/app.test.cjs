@@ -108,6 +108,7 @@ function createHarness() {
     isStructuredMismatch,
     selectFiles,
     showMismatchDialog,
+    renderRecommendations,
   };`, context);
   return { context, elements, revoked };
 }
@@ -174,4 +175,51 @@ test("ignores stale inspection responses and revokes replaced preview URLs", asy
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(elements.get("mismatch-dialog").open, false);
   assert.equal(elements.get("error").classList.contains("hidden"), true);
+});
+
+test("renders only eligible recommendation options and validated price details", () => {
+  const { context, elements } = createHarness();
+  context.appTest.renderRecommendations({
+    grade: "ClassI",
+    advisory: "Do not render this text.",
+    options: [
+      {
+        label: "Local Market",
+        status: "candidate",
+        reason: "Do not render this text.",
+        required_external_checks: ["buyer confirmation"],
+        price_estimate: {
+          currency: "PHP", low: 10, high: 12, unit: "kg", source: "cooperative bulletin",
+        },
+      },
+      { label: "Premium Sale" },
+      { label: "Unavailable outlet", status: "unavailable" },
+      { reason: "Malformed option" },
+    ],
+  });
+
+  const card = elements.get("recommendations-card");
+  const list = elements.get("recommendations-list");
+  assert.equal(card.classList.contains("hidden"), false);
+  assert.equal(list.children.length, 3);
+  assert.equal(list.children[0].tagName, "li");
+  assert.equal(list.children[0].children.length, 2);
+  assert.equal(list.children[0].children[0].textContent, "Local Market");
+  assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin/);
+  assert.equal(list.children[1].children[0].textContent, "Premium Sale");
+  assert.equal(list.children[2].children[0].textContent, "Unavailable outlet");
+  assert.equal(elements.get("recommendations-summary").textContent, "");
+});
+
+test("hides recommendations when options are missing, malformed, or empty", () => {
+  const { context, elements } = createHarness();
+  const card = elements.get("recommendations-card");
+  const list = elements.get("recommendations-list");
+
+  for (const recommendations of [null, {}, { options: "not an array" }, { options: [] }, { options: [{ reason: "missing label" }] }]) {
+    card.classList.remove("hidden");
+    context.appTest.renderRecommendations(recommendations);
+    assert.equal(card.classList.contains("hidden"), true);
+    assert.equal(list.children.length, 0);
+  }
 });

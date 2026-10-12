@@ -620,21 +620,10 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .util-reason { font-size: 0.9rem; color: var(--ink); }
 
 .recommendations-card { display: flex; flex-direction: column; gap: 10px; }
-.recommendations-summary { color: var(--ink-soft); font-size: 0.9rem; }
-.recommendations-list { display: grid; gap: 9px; }
-.recommendation-item { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
-.recommendation-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 11px 12px; color: var(--brand-900); cursor: pointer; list-style: none; }
-.recommendation-head::-webkit-details-marker { display: none; }
-.recommendation-head::after { content: "+"; margin-left: auto; color: var(--muted); font-size: 1rem; font-weight: 500; }
-.recommendation-item[open] .recommendation-head::after { content: "−"; }
-.recommendation-body { padding: 0 12px 11px; }
-.recommendation-status { border-radius: var(--radius-pill); padding: 3px 8px; font-size: 0.68rem; font-weight: 800; text-transform: capitalize; }
-.status-candidate { background: var(--ok-bg); color: var(--ok); }
-.status-requires_check { background: var(--warn-bg); color: var(--warn); }
-.status-unavailable { background: var(--danger-bg); color: var(--danger); }
-.recommendation-reason, .recommendation-checks, .recommendation-price { margin-top: 5px; font-size: 0.82rem; }
-.recommendation-reason { color: var(--ink); }
-.recommendation-checks, .recommendation-price { color: var(--muted); }
+.recommendations-list { display: grid; gap: 8px; margin: 0; padding-left: 1.25rem; }
+.recommendation-item { padding-left: 3px; color: var(--brand-900); }
+.recommendation-label { font-weight: 800; }
+.recommendation-price { margin: 3px 0 0; color: var(--muted); font-size: 0.82rem; }
 
 /* ==========================================================================
    Responsive

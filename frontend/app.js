@@ -344,81 +344,33 @@ function renderRecommendations(recommendations) {
   card.classList.add("hidden");
   summary.textContent = "";
   list.replaceChildren();
-  if (!recommendations || typeof recommendations !== "object") return;
+  if (!recommendations || typeof recommendations !== "object" || !Array.isArray(recommendations.options)) return;
 
-  const options = Array.isArray(recommendations)
-    ? recommendations
-    : recommendations.options || recommendations.candidates || recommendations.items ||
-      (recommendations.label || recommendations.name || recommendations.use ? [recommendations] : []);
-  if (recommendations.advisory || recommendations.summary || recommendations.reason) {
-    summary.textContent = recommendations.advisory || recommendations.summary || recommendations.reason;
-  }
-  if (!Array.isArray(options)) return;
-
-  const visibleOptions = recommendations.grade === "Reject"
-    ? options.filter((option) => option && option.status !== "unavailable")
-    : options;
-
-  visibleOptions.forEach((option) => {
-    if (!option || typeof option !== "object") return;
-    const item = document.createElement("details");
+  recommendations.options.forEach((option) => {
+    if (!option || typeof option !== "object" || typeof option.label !== "string" || !option.label) return;
+    const item = document.createElement("li");
     item.className = "recommendation-item";
 
-    const head = document.createElement("summary");
-    head.className = "recommendation-head";
     const label = document.createElement("strong");
-    label.textContent = option.label || option.name || option.use || "Recommendation";
-    head.appendChild(label);
-    if (option.status) {
-      const status = document.createElement("span");
-      status.className = `recommendation-status status-${String(option.status).toLowerCase().replace(/[^a-z0-9_-]/g, "-")}`;
-      status.textContent = formatLabel(option.status);
-      head.appendChild(status);
-    }
-    item.appendChild(head);
+    label.className = "recommendation-label";
+    label.textContent = option.label;
+    item.appendChild(label);
 
-    const body = document.createElement("div");
-    body.className = "recommendation-body";
-
-    if (option.reason) {
-      const reason = document.createElement("p");
-      reason.className = "recommendation-reason";
-      reason.textContent = option.reason;
-      body.appendChild(reason);
-    }
-    const checks = option.required_external_checks || option.required_checks || option.checks;
-    if (Array.isArray(checks) && checks.length) {
-      const checksEl = document.createElement("p");
-      checksEl.className = "recommendation-checks";
-      checksEl.textContent = `Requires: ${checks.join("; ")}`;
-      body.appendChild(checksEl);
-    }
-    const price = option.price || option.price_estimate;
-    if (price && typeof price === "object") {
+    const price = option.price_estimate;
+    if (price && typeof price === "object" &&
+        typeof price.currency === "string" && typeof price.unit === "string" &&
+        typeof price.low === "number" && Number.isFinite(price.low) &&
+        typeof price.high === "number" && Number.isFinite(price.high) &&
+        price.high >= price.low && typeof price.source === "string" && price.source.trim()) {
       const priceEl = document.createElement("p");
       priceEl.className = "recommendation-price";
-      const low = price.low ?? price.min;
-      const high = price.high ?? price.max;
-      const currency = price.currency || "PHP";
-      const range = low != null && high != null ? `${currency} ${low}–${high}` : price.value;
-      const unit = price.unit ? ` / ${price.unit}` : "";
-      const market = price.market ? ` · ${price.market}` : "";
-      const provenance = price.provenance || {};
-      const source = price.source || provenance.source;
-      const effectiveDate = price.effective_date || provenance.effective_date;
-      const validThrough = price.valid_through || provenance.valid_through;
-      const sourceText = source ? ` · source: ${source}` : "";
-      const effective = effectiveDate ? ` · effective ${effectiveDate}` : "";
-      const validity = validThrough ? ` · valid through ${validThrough}` : "";
-      const uncertainty = price.uncertainty ? ` · ${price.uncertainty}` : "";
-      priceEl.textContent = range ? `${range}${unit}${market}${sourceText}${effective}${validity}${uncertainty}` : "";
-      if (priceEl.textContent) body.appendChild(priceEl);
+      priceEl.textContent = `${price.currency} ${price.low}–${price.high} / ${price.unit} · source: ${price.source}`;
+      item.appendChild(priceEl);
     }
-    item.appendChild(body);
     list.appendChild(item);
   });
 
-  if (summary.textContent || list.childElementCount) card.classList.remove("hidden");
+  if (list.children.length) card.classList.remove("hidden");
 }
 
 function renderAnnotationHotspots(report) {
