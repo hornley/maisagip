@@ -214,10 +214,10 @@ test("ignores stale inspection responses and revokes replaced preview URLs", asy
 test("renders only eligible recommendation options and validated price details", () => {
   const { context, elements } = createHarness();
   const indexHtml = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(indexHtml, /<h2>Recommendation<\/h2>/);
   assert.match(indexHtml, /<ul id="recommendations-list" class="recommendations-list"><\/ul>/);
   context.appTest.renderRecommendations({
     grade: "ClassI",
-    advisory: "Do not render this text.",
     options: [
       {
         label: "Local Market",
@@ -226,6 +226,7 @@ test("renders only eligible recommendation options and validated price details",
         required_external_checks: ["buyer confirmation"],
         price_estimate: {
           currency: "PHP", low: 10, high: 12, unit: "kg", source: "cooperative bulletin",
+          market: "local_market", effective_date: "2026-10-01",
         },
       },
       { label: "Premium Sale" },
@@ -241,9 +242,9 @@ test("renders only eligible recommendation options and validated price details",
   assert.equal(list.children[0].tagName, "li");
   assert.equal(list.children[0].children.length, 2);
   assert.equal(list.children[0].children[0].textContent, "Local Market");
-  assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin/);
+  assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin · effective 2026-10-01/);
   assert.equal(list.children[1].children[0].textContent, "Premium Sale");
-  assert.equal(elements.get("recommendations-summary").textContent, "");
+  assert.doesNotMatch(list.children[0].textContent, /candidate|reason|buyer confirmation|unavailable/i);
 });
 
 test("hides recommendations when options are missing, malformed, empty, or all unavailable", () => {

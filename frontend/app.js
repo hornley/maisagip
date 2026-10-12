@@ -345,10 +345,8 @@ function formatLabel(value) {
 
 function renderRecommendations(recommendations) {
   const card = document.getElementById("recommendations-card");
-  const summary = document.getElementById("recommendations-summary");
   const list = document.getElementById("recommendations-list");
   card.classList.add("hidden");
-  summary.textContent = "";
   list.replaceChildren();
   if (!recommendations || typeof recommendations !== "object" || !Array.isArray(recommendations.options)) return;
 
@@ -368,10 +366,11 @@ function renderRecommendations(recommendations) {
         typeof price.currency === "string" && typeof price.unit === "string" &&
         typeof price.low === "number" && Number.isFinite(price.low) &&
         typeof price.high === "number" && Number.isFinite(price.high) &&
-        price.high >= price.low && typeof price.source === "string" && price.source.trim()) {
+        price.high >= price.low && typeof price.source === "string" && price.source.trim() &&
+        typeof price.effective_date === "string" && price.effective_date.trim()) {
       const priceEl = document.createElement("p");
       priceEl.className = "recommendation-price";
-      priceEl.textContent = `${price.currency} ${price.low}–${price.high} / ${price.unit} · source: ${price.source}`;
+      priceEl.textContent = `${price.currency} ${price.low}–${price.high} / ${price.unit} · source: ${price.source} · effective ${price.effective_date}`;
       item.appendChild(priceEl);
     }
     list.appendChild(item);
