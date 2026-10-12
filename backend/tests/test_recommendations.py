@@ -22,29 +22,37 @@ def _labels(grade, defects=None, price_data=None):
     return {option["label"] for option in _result(grade, defects, price_data)["options"]}
 
 
-def test_grade_filters_outlet_labels_exactly():
-    assert _labels("ExtraClass") == {"Local Market", "Export", "Premium Sale", "Processed/Canned"}
-    assert _labels("ClassI") == {"Local Market", "Premium Sale", "Processed/Canned"}
-    assert _labels("ClassII") == {"Local Market", "Processed/Canned"}
-    assert _labels("Reject") == set()
+def test_recommendation_labels_match_exact_grade_policy():
+    cases = [
+        ("ExtraClass", [], {"Local Market", "Export", "Premium Sale", "Processed/Canned"}),
+        ("ClassI", [], {"Local Market", "Premium Sale", "Processed/Canned"}),
+        ("ClassII", [], {"Local Market"}),
+        ("Reject", [], {"Poultry Feed"}),
+    ]
+    for grade, defects, expected in cases:
+        assert _labels(grade, defects) == expected
 
 
 def test_mold_leaves_only_local_market_for_non_reject_grades():
     for grade in ("ExtraClass", "ClassI", "ClassII"):
         assert _labels(grade, ["mold"]) == {"Local Market"}
-    assert _labels("Reject", ["mold"]) == set()
+    assert _labels("Reject", ["mold"]) == {"Poultry Feed"}
 
 
 def test_ear_decay_leaves_only_local_market_for_non_reject_grades():
     for grade in ("ExtraClass", "ClassI", "ClassII"):
         assert _labels(grade, ["ear_decay"]) == {"Local Market"}
-    assert _labels("Reject", ["ear_decay"]) == set()
+    assert _labels("Reject", ["ear_decay"]) == {"Poultry Feed"}
+
+
+def test_reject_with_both_safety_defects_still_recommends_poultry_feed():
+    assert _labels("Reject", ["mold", "ear_decay"]) == {"Poultry Feed"}
 
 
 def test_unrelated_defects_do_not_add_grade_excluded_outlets():
     assert _labels("ClassI", ["insect_damage"]) == {"Local Market", "Premium Sale", "Processed/Canned"}
-    assert _labels("ClassII", ["insect_damage"]) == {"Local Market", "Processed/Canned"}
-    assert _labels("Reject", ["insect_damage"]) == set()
+    assert _labels("ClassII", ["insect_damage"]) == {"Local Market"}
+    assert _labels("Reject", ["insect_damage"]) == {"Poultry Feed"}
 
 
 def test_options_only_expose_label_and_validated_price():
@@ -59,6 +67,12 @@ def test_options_only_expose_label_and_validated_price():
 def test_price_is_never_emitted_for_ineligible_channel():
     result = _result("ClassI", price_data=[_price(market="export")])
     assert all("price_estimate" not in option for option in result["options"])
+
+
+def test_ineligible_options_are_omitted_without_status_fields():
+    result = _result("ClassII", price_data=[_price()])
+    assert {option["label"] for option in result["options"]} == {"Local Market"}
+    assert all(set(option) <= {"label", "price_estimate"} for option in result["options"])
 
 
 def test_stale_price_is_omitted_from_eligible_local_market_option():

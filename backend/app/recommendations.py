@@ -18,8 +18,8 @@ CONFIG_PATH = Path(__file__).parent / "rules" / "config_recommendations.json"
 GRADE_CHANNELS = {
     "ExtraClass": {"local_market", "export", "premium_sale", "food_processing_canned"},
     "ClassI": {"local_market", "premium_sale", "food_processing_canned"},
-    "ClassII": {"local_market", "food_processing_canned"},
-    "Reject": set(),
+    "ClassII": {"local_market"},
+    "Reject": {"poultry_feed"},
 }
 PRICE_FIELDS = {
     "market", "variety", "grade_product_basis", "currency", "unit", "low",

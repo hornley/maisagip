@@ -25,12 +25,18 @@
       "label": "Processed/Canned",
       "checks": ["processor specification", "processing suitability and required food-safety tests"],
       "reason": "Processing may be a practical outlet, but suitability and food-safety requirements need external confirmation."
+    },
+    {
+      "id": "poultry_feed",
+      "label": "Poultry Feed",
+      "checks": ["validated feed-safety rules", "buyer/feed-mill acceptance"],
+      "reason": "A feed outlet remains subject to validated feed-safety rules and buyer acceptance."
     }
   ],
   "reject": {
     "hold_label": "Hold for qualified inspection/testing",
     "hold_checks": ["qualified inspection", "applicable food/feed-safety testing"],
-    "feed_label": "Poultry/feed alternative",
+    "feed_label": "Poultry Feed",
     "feed_checks": ["validated feed-safety rules", "buyer/feed-mill acceptance"]
   },
   "rates": []
