@@ -11,6 +11,15 @@ const confidenceThreshold = document.getElementById("confidence-threshold");
 const confidenceThresholdValue = document.getElementById("confidence-threshold-value");
 
 let selectedFiles = [];
+let previewUrls = [];
+let selectionGeneration = 0;
+let mismatchResults = [];
+let mismatchIndex = 0;
+
+const mismatchDialog = document.getElementById("mismatch-dialog");
+const mismatchClose = document.getElementById("mismatch-close");
+const mismatchPrevious = document.getElementById("mismatch-previous");
+const mismatchNext = document.getElementById("mismatch-next");
 
 confidenceThreshold.addEventListener("input", () => {
   confidenceThresholdValue.textContent = `${confidenceThreshold.value}%`;
@@ -40,15 +49,20 @@ dropzone.addEventListener("drop", (e) => {
 });
 
 function selectFiles(files) {
+  selectionGeneration += 1;
+  if (mismatchDialog.open) mismatchDialog.close();
+  mismatchResults = [];
+  previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  previewUrls = files.map((file) => URL.createObjectURL(file));
   selectedFiles = files;
   errorEl.classList.add("hidden");
   resultEl.classList.add("hidden");
   previewsEl.innerHTML = "";
-  files.forEach((f) => {
+  files.forEach((f, index) => {
     const holder = document.createElement("div");
     holder.className = "pthumb";
     const img = document.createElement("img");
-    img.src = URL.createObjectURL(f);
+    img.src = previewUrls[index];
     const cap = document.createElement("span");
     cap.className = "pthumb-cap";
     cap.textContent = f.name;
@@ -63,23 +77,109 @@ function selectFiles(files) {
 
 inspectBtn.addEventListener("click", async () => {
   if (!selectedFiles.length) return;
+  const requestGeneration = selectionGeneration;
+  const requestFiles = selectedFiles;
   inspectBtn.disabled = true;
   statusEl.textContent = "Analyzing ear…";
   const form = new FormData();
-  selectedFiles.forEach((f) => form.append("files", f));
+  requestFiles.forEach((f) => form.append("files", f));
   form.append("confidence_threshold", String(Number(confidenceThreshold.value) / 100));
   try {
     const res = await fetch("/inspect", { method: "POST", body: form });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (requestGeneration !== selectionGeneration) return;
+    if (!res.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : `HTTP ${res.status}`;
+      if (isStructuredMismatch(data, requestFiles.length)) {
+        showMismatchDialog(detail, data.view_results);
+        return;
+      }
+      throw new Error(detail);
+    }
     render(data);
   } catch (err) {
+    if (requestGeneration !== selectionGeneration) return;
     showError(err.message);
   } finally {
     inspectBtn.disabled = false;
     statusEl.textContent = "";
   }
 });
+
+function isStructuredMismatch(data, fileCount) {
+  if (!data || typeof data.detail !== "string" || !Array.isArray(data.view_results)) return false;
+  if (data.view_results.length !== fileCount || !fileCount) return false;
+  const views = data.view_results.map((entry) => entry?.view);
+  if (!views.every((view) => Number.isInteger(view) && view >= 1 && view <= fileCount)) return false;
+  if (new Set(views).size !== fileCount || !views.every((view, index) => view === index + 1)) return false;
+  return data.view_results.every((entry) =>
+    entry && typeof entry.variety?.class === "string" && Array.isArray(entry.defects) &&
+    entry.defects.every((defect) => defect && typeof defect.class === "string")
+  );
+}
+
+function showMismatchDialog(detail, results) {
+  mismatchResults = results;
+  mismatchIndex = 0;
+  showError(detail);
+  document.getElementById("mismatch-message").textContent = detail;
+  renderMismatchView();
+  if (!mismatchDialog.open) mismatchDialog.showModal();
+  mismatchDialog.focus();
+}
+
+function renderMismatchView() {
+  const result = mismatchResults[mismatchIndex];
+  if (!result) return;
+  const image = document.getElementById("mismatch-image");
+  image.src = previewUrls[result.view - 1];
+  image.alt = `Uploaded image for view ${result.view}`;
+  document.getElementById("mismatch-view").textContent = `View ${result.view}`;
+  document.getElementById("mismatch-variety-name").textContent = varietyDisplayName(result.variety.class);
+  document.getElementById("mismatch-variety-class").textContent = `Canonical class: ${formatLabel(result.variety.class)}`;
+
+  const counts = new Map();
+  result.defects.forEach((defect) => {
+    if (defect.class === "corn_ear") return;
+    counts.set(defect.class, (counts.get(defect.class) || 0) + 1);
+  });
+  const defectList = document.getElementById("mismatch-defect-list");
+  defectList.replaceChildren();
+  if (!counts.size) {
+    const empty = document.createElement("li");
+    empty.className = "mismatch-no-defects";
+    empty.textContent = "No visible defects detected.";
+    defectList.appendChild(empty);
+  } else {
+    counts.forEach((count, className) => {
+      const item = document.createElement("li");
+      item.textContent = `${formatLabel(className)} ×${count}`;
+      defectList.appendChild(item);
+    });
+  }
+  document.getElementById("mismatch-counter").textContent = `${mismatchIndex + 1} of ${mismatchResults.length}`;
+  mismatchPrevious.disabled = mismatchIndex === 0;
+  mismatchNext.disabled = mismatchIndex === mismatchResults.length - 1;
+}
+
+function closeMismatchDialog() {
+  if (mismatchDialog.open) mismatchDialog.close();
+}
+
+mismatchClose.addEventListener("click", closeMismatchDialog);
+mismatchPrevious.addEventListener("click", () => {
+  if (mismatchIndex > 0) {
+    mismatchIndex -= 1;
+    renderMismatchView();
+  }
+});
+mismatchNext.addEventListener("click", () => {
+  if (mismatchIndex < mismatchResults.length - 1) {
+    mismatchIndex += 1;
+    renderMismatchView();
+  }
+});
+mismatchDialog.addEventListener("close", () => inspectBtn.focus());
 
 function showError(message) {
   errorEl.textContent = message;
@@ -214,12 +314,16 @@ function renderRecommendations(recommendations) {
   }
   if (!Array.isArray(options)) return;
 
-  options.forEach((option) => {
+  const visibleOptions = recommendations.grade === "Reject"
+    ? options.filter((option) => option && option.status !== "unavailable")
+    : options;
+
+  visibleOptions.forEach((option) => {
     if (!option || typeof option !== "object") return;
-    const item = document.createElement("article");
+    const item = document.createElement("details");
     item.className = "recommendation-item";
 
-    const head = document.createElement("div");
+    const head = document.createElement("summary");
     head.className = "recommendation-head";
     const label = document.createElement("strong");
     label.textContent = option.label || option.name || option.use || "Recommendation";
@@ -232,18 +336,21 @@ function renderRecommendations(recommendations) {
     }
     item.appendChild(head);
 
+    const body = document.createElement("div");
+    body.className = "recommendation-body";
+
     if (option.reason) {
       const reason = document.createElement("p");
       reason.className = "recommendation-reason";
       reason.textContent = option.reason;
-      item.appendChild(reason);
+      body.appendChild(reason);
     }
     const checks = option.required_external_checks || option.required_checks || option.checks;
     if (Array.isArray(checks) && checks.length) {
       const checksEl = document.createElement("p");
       checksEl.className = "recommendation-checks";
       checksEl.textContent = `Requires: ${checks.join("; ")}`;
-      item.appendChild(checksEl);
+      body.appendChild(checksEl);
     }
     const price = option.price || option.price_estimate;
     if (price && typeof price === "object") {
@@ -264,8 +371,9 @@ function renderRecommendations(recommendations) {
       const validity = validThrough ? ` · valid through ${validThrough}` : "";
       const uncertainty = price.uncertainty ? ` · ${price.uncertainty}` : "";
       priceEl.textContent = range ? `${range}${unit}${market}${sourceText}${effective}${validity}${uncertainty}` : "";
-      if (priceEl.textContent) item.appendChild(priceEl);
+      if (priceEl.textContent) body.appendChild(priceEl);
     }
+    item.appendChild(body);
     list.appendChild(item);
   });
 
