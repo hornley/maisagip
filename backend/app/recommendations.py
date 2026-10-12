@@ -11,11 +11,26 @@ import json
 import math
 from datetime import date
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, Sequence, TypedDict
 
 
 CONFIG_PATH = Path(__file__).parent / "rules" / "config_recommendations.json"
-REQUIRED_GRADES = ("ExtraClass", "ClassI", "ClassII", "Reject")
+GRADE_CHANNELS = MappingProxyType({
+    "ExtraClass": frozenset({"local_market", "export", "premium_sale", "food_processing_canned"}),
+    "ClassI": frozenset({"local_market", "premium_sale", "food_processing_canned"}),
+    "ClassII": frozenset({"local_market"}),
+    "Reject": frozenset({"poultry_feed"}),
+})
+SAFETY_EXCLUSIONS = frozenset({"mold", "ear_decay"})
+CHANNEL_LABELS = MappingProxyType({
+    "local_market": "Local Market",
+    "export": "Export",
+    "premium_sale": "Premium Sale",
+    "food_processing_canned": "Processed/Canned",
+    "poultry_feed": "Poultry Feed",
+})
+CHANNEL_ORDER = tuple(CHANNEL_LABELS)
 PRICE_FIELDS = {
     "market", "variety", "grade_product_basis", "currency", "unit", "low",
     "high", "adjustment_factors", "source", "effective_date", "valid_through",
@@ -57,51 +72,15 @@ def _config() -> Mapping[str, Any]:
         raise ValueError("Invalid recommendation config: invalid JSON") from exc
     if not isinstance(config, Mapping):
         raise ValueError("Invalid recommendation config: root must be an object")
-
-    channels = config.get("channels")
-    if not isinstance(channels, list):
-        raise ValueError("Invalid recommendation config: channels must be an array")
-    channel_ids: set[str] = set()
-    for index, channel in enumerate(channels):
-        if not isinstance(channel, Mapping):
-            raise ValueError(f"Invalid recommendation config: channel at index {index} must be an object")
-        channel_id, label = channel.get("id"), channel.get("label")
-        if not isinstance(channel_id, str) or not channel_id.strip():
-            raise ValueError(f"Invalid recommendation config: channel at index {index} must have a non-empty id")
-        if not isinstance(label, str) or not label.strip():
-            raise ValueError(f"Invalid recommendation config: channel at index {index} must have a non-empty label")
-        if channel_id in channel_ids:
-            raise ValueError(f"Invalid recommendation config: duplicate channel ID {channel_id!r}")
-        channel_ids.add(channel_id)
-
-    grade_channels = config.get("grade_channels")
-    if not isinstance(grade_channels, Mapping):
-        raise ValueError("Invalid recommendation config: grade_channels must be an object")
-    for grade in REQUIRED_GRADES:
-        if grade not in grade_channels:
-            raise ValueError(f"Invalid recommendation config: missing required grade: {grade}")
-    for grade, ids in grade_channels.items():
-        if not isinstance(grade, str) or not grade.strip():
-            raise ValueError("Invalid recommendation config: grade_channels keys must be non-empty strings")
-        if not isinstance(ids, list):
-            raise ValueError(f"Invalid recommendation config: channels for grade {grade} must be an array")
-        for channel_id in ids:
-            if not isinstance(channel_id, str) or not channel_id.strip():
-                raise ValueError(f"Invalid recommendation config: invalid channel ID for grade {grade}")
-            if channel_id not in channel_ids:
-                raise ValueError(
-                    f"Invalid recommendation config: unknown channel ID {channel_id!r} for grade {grade}"
-                )
-    poultry_feed = next((channel for channel in channels if channel["id"] == "poultry_feed"), None)
-    if poultry_feed is None:
-        raise ValueError("Invalid recommendation config: a poultry_feed channel is required for Reject recommendations")
-    if poultry_feed["label"] != "Poultry Feed":
-        raise ValueError("Invalid recommendation config: poultry_feed channel must be labeled 'Poultry Feed'")
-
-    for key in ("safety_exclusions", "required_price_adjustments"):
-        values = config.get(key)
-        if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
-            raise ValueError(f"Invalid recommendation config: {key} must be an array of non-empty strings")
+    adjustments = config.get("required_price_adjustments")
+    if (not isinstance(adjustments, list) or not adjustments or
+            any(not isinstance(value, str) or not value.strip() for value in adjustments)):
+        raise ValueError(
+            "Invalid recommendation config: required_price_adjustments must be a non-empty array "
+            "of non-empty strings"
+        )
+    if not isinstance(config.get("rates"), list):
+        raise ValueError("Invalid recommendation config: rates must be an array")
     return config
 
 
@@ -220,29 +199,30 @@ def build_recommendations(
     ``price_data`` may be a list of records or ``{"rates": [...]}``. Invalid,
     incomplete, stale, or mismatched records are ignored rather than repaired.
     """
-    policy = _config()
+    operational_config = _config()
     grade_key = _grade_key(grade)
     variety_text = variety if isinstance(variety, str) else ""
     defect_names, _ = _defect_view(defects)
-    safety = sorted(defect_names.intersection(policy["safety_exclusions"]))
-    grade_channels = policy["grade_channels"]
-    # Reject is a product invariant: configuration cannot route it to another outlet.
-    eligible_ids = {"poultry_feed"} if grade_key == "Reject" else set(grade_channels.get(grade_key, []))
+    safety = sorted(defect_names.intersection(SAFETY_EXCLUSIONS))
+    eligible_ids = GRADE_CHANNELS.get(grade_key, frozenset())
     if safety and grade_key != "Reject":
-        eligible_ids.intersection_update({"local_market"})
+        eligible_ids = eligible_ids.intersection({"local_market"})
     as_of = _as_date(inspection_date) or date.today()
-    rows = policy.get("rates", []) if price_data is None else (
+    rows = operational_config["rates"] if price_data is None else (
         price_data.get("rates", []) if isinstance(price_data, Mapping) else price_data
     )
     rows = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else []
 
     options = []
-    for channel in policy["channels"]:
-        if channel["id"] not in eligible_ids:
+    for channel_id in CHANNEL_ORDER:
+        if channel_id not in eligible_ids:
             continue
-        option = {"label": channel["label"]}
+        option = {"label": CHANNEL_LABELS[channel_id]}
         for row in rows:
-            estimate = _matching_price(row, channel["id"], variety_text, grade_key, as_of, policy["required_price_adjustments"])
+            estimate = _matching_price(
+                row, channel_id, variety_text, grade_key, as_of,
+                operational_config["required_price_adjustments"],
+            )
             if estimate is not None:
                 option["price_estimate"] = estimate
                 break

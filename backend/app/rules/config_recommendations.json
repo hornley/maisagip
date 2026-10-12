@@ -1,49 +1,4 @@
 {
-  "safety_exclusions": ["mold", "ear_decay"],
   "required_price_adjustments": ["defect_coverage", "size", "completeness"],
-  "grade_channels": {
-    "ExtraClass": ["local_market", "export", "premium_sale", "food_processing_canned"],
-    "ClassI": ["local_market", "premium_sale", "food_processing_canned"],
-    "ClassII": ["local_market"],
-    "Reject": ["poultry_feed"]
-  },
-  "channels": [
-    {
-      "id": "local_market",
-      "label": "Local Market",
-      "checks": ["buyer acceptance and applicable local quality requirements"],
-      "reason": "Visible appearance and the assigned grade can support a local-market candidate, subject to buyer checks."
-    },
-    {
-      "id": "export",
-      "label": "Export",
-      "checks": ["importer requirements", "official export inspection and documentation", "product-specific quality tests"],
-      "reason": "Export eligibility cannot be established from visual inspection; confirm importer and official requirements."
-    },
-    {
-      "id": "premium_sale",
-      "label": "Premium Sale",
-      "checks": ["buyer specification", "size and appearance acceptance"],
-      "reason": "A premium outlet is only a candidate when the visible appearance and completeness support buyer review."
-    },
-    {
-      "id": "food_processing_canned",
-      "label": "Processed/Canned",
-      "checks": ["processor specification", "processing suitability and required food-safety tests"],
-      "reason": "Processing may be a practical outlet, but suitability and food-safety requirements need external confirmation."
-    },
-    {
-      "id": "poultry_feed",
-      "label": "Poultry Feed",
-      "checks": ["validated feed-safety rules", "buyer/feed-mill acceptance"],
-      "reason": "A feed outlet remains subject to validated feed-safety rules and buyer acceptance."
-    }
-  ],
-  "reject": {
-    "hold_label": "Hold for qualified inspection/testing",
-    "hold_checks": ["qualified inspection", "applicable food/feed-safety testing"],
-    "feed_label": "Poultry Feed",
-    "feed_checks": ["validated feed-safety rules", "buyer/feed-mill acceptance"]
-  },
   "rates": []
 }

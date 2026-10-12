@@ -1,5 +1,4 @@
 import json
-from datetime import date, timedelta
 
 import pytest
 
@@ -69,37 +68,40 @@ def test_reject_with_both_safety_defects_still_recommends_poultry_feed():
     assert _labels("Reject", ["mold", "ear_decay"]) == {"Poultry Feed"}
 
 
-def test_reject_eligibility_is_enforced_even_if_config_disagrees(monkeypatch, tmp_path):
+def test_config_cannot_change_grade_safety_or_label_policy(monkeypatch, tmp_path):
     config = json.loads(recommendations.CONFIG_PATH.read_text(encoding="utf-8"))
-    config["grade_channels"]["Reject"] = ["local_market"]
+    config.update({
+        "grade_channels": {
+            "ExtraClass": ["local_market"],
+            "ClassI": [],
+            "ClassII": ["export"],
+            "Reject": ["local_market"],
+        },
+        "safety_exclusions": [],
+        "channels": [{"id": "local_market", "label": "Tampered label"}],
+    })
     monkeypatch.setattr(recommendations, "CONFIG_PATH", _write_config(tmp_path, config))
 
+    assert _labels("ExtraClass") == {"Local Market", "Export", "Premium Sale", "Processed/Canned"}
+    assert _labels("ClassI", ["mold"]) == {"Local Market"}
+    assert _labels("ClassI", ["ear_decay"]) == {"Local Market"}
     assert _labels("Reject", ["mold", "ear_decay"]) == {"Poultry Feed"}
 
 
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda config: config.update(grade_channels=[]), "grade_channels must be an object"),
-        (lambda config: config["grade_channels"].pop("ClassII"), "missing required grade: ClassII"),
         (
-            lambda config: config["grade_channels"].update(ClassII=["unknown"]),
-            "unknown channel ID 'unknown' for grade ClassII",
+            lambda config: config.update(required_price_adjustments="size"),
+            "required_price_adjustments must be a non-empty array of non-empty strings",
         ),
         (
-            lambda config: config["channels"].__setitem__(0, {"id": "local_market"}),
-            "channel at index 0 must have a non-empty label",
+            lambda config: config.update(required_price_adjustments=[]),
+            "required_price_adjustments must be a non-empty array of non-empty strings",
         ),
         (
-            lambda config: (
-                config["channels"].pop(4),
-                config["grade_channels"].update(Reject=[]),
-            ),
-            "a poultry_feed channel is required for Reject recommendations",
-        ),
-        (
-            lambda config: config["channels"][4].update(label="Other Outlet"),
-            "poultry_feed channel must be labeled 'Poultry Feed'",
+            lambda config: config.update(rates={}),
+            "rates must be an array",
         ),
     ],
 )
