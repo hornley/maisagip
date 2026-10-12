@@ -350,33 +350,57 @@ function renderRecommendations(recommendations) {
   list.replaceChildren();
   if (!recommendations || typeof recommendations !== "object" || !Array.isArray(recommendations.options)) return;
 
+  const eligibleOutlets = {
+    ExtraClass: new Set(["Local Market", "Export", "Premium Sale", "Processed/Canned"]),
+    ClassI: new Set(["Local Market", "Premium Sale", "Processed/Canned"]),
+    ClassII: new Set(["Local Market"]),
+    Reject: new Set(["Poultry Feed"]),
+  };
+  const eligibility = Object.prototype.hasOwnProperty.call(eligibleOutlets, recommendations.grade)
+    ? eligibleOutlets[recommendations.grade]
+    : null;
   recommendations.options.forEach((option) => {
     if (!option || typeof option !== "object" || option.status === "unavailable" ||
-        typeof option.label !== "string" || !option.label) return;
+        typeof option.label !== "string" || !option.label.trim()) return;
+    const labelText = option.label.trim();
+    const knownOutlet = Object.values(eligibleOutlets).some((outlets) => outlets.has(labelText));
+    if (knownOutlet && (!eligibility || !eligibility.has(labelText))) return;
+
     const item = document.createElement("li");
     item.className = "recommendation-item";
 
     const label = document.createElement("strong");
     label.className = "recommendation-label";
-    label.textContent = option.label;
+    label.textContent = labelText;
     item.appendChild(label);
 
     const price = option.price_estimate;
     if (price && typeof price === "object" &&
-        typeof price.currency === "string" && typeof price.unit === "string" &&
+        price.currency === "PHP" && ["kg", "PHP/kg"].includes(price.unit) &&
         typeof price.low === "number" && Number.isFinite(price.low) &&
+        price.low >= 0 &&
         typeof price.high === "number" && Number.isFinite(price.high) &&
         price.high >= price.low && typeof price.source === "string" && price.source.trim() &&
-        typeof price.effective_date === "string" && price.effective_date.trim()) {
+        isIsoCalendarDate(price.effective_date)) {
       const priceEl = document.createElement("p");
       priceEl.className = "recommendation-price";
-      priceEl.textContent = `${price.currency} ${price.low}–${price.high} / ${price.unit} · source: ${price.source} · effective ${price.effective_date}`;
+      const uncertainty = typeof price.uncertainty === "string" && price.uncertainty.trim()
+        ? price.uncertainty.trim()
+        : "indicative range; confirm with the buyer";
+      const unit = price.unit === "PHP/kg" ? "kg" : price.unit;
+      priceEl.textContent = `PHP ${price.low}–${price.high} / ${unit} · source: ${price.source.trim()} · effective ${price.effective_date} · ${uncertainty}`;
       item.appendChild(priceEl);
     }
     list.appendChild(item);
   });
 
   if (list.children.length) card.classList.remove("hidden");
+}
+
+function isIsoCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function renderAnnotationHotspots(report) {

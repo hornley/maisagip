@@ -227,9 +227,12 @@ test("renders only eligible recommendation options and validated price details",
         price_estimate: {
           currency: "PHP", low: 10, high: 12, unit: "kg", source: "cooperative bulletin",
           market: "local_market", effective_date: "2026-10-01",
+          uncertainty: "indicative range; confirm with the buyer",
         },
       },
       { label: "Premium Sale" },
+      { label: "Export" },
+      { label: "   " },
       { label: "Unavailable outlet", status: "unavailable" },
       { reason: "Malformed option" },
     ],
@@ -242,9 +245,70 @@ test("renders only eligible recommendation options and validated price details",
   assert.equal(list.children[0].tagName, "li");
   assert.equal(list.children[0].children.length, 2);
   assert.equal(list.children[0].children[0].textContent, "Local Market");
-  assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin · effective 2026-10-01/);
+  assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin · effective 2026-10-01 · indicative range; confirm with the buyer/);
   assert.equal(list.children[1].children[0].textContent, "Premium Sale");
-  assert.doesNotMatch(list.children[0].textContent, /candidate|reason|buyer confirmation|unavailable/i);
+  assert.doesNotMatch(list.children[0].textContent, /candidate|reason|buyer confirmation|unavailable|local_market/i);
+  assert.deepEqual(list.children.map((item) => item.children[0].textContent), ["Local Market", "Premium Sale"]);
+});
+
+test("preserves the Reject to Poultry Feed recommendation", () => {
+  const { context, elements } = createHarness();
+  context.appTest.renderRecommendations({
+    grade: "Reject",
+    options: [{ label: "Poultry Feed" }, { label: "Local Market" }],
+  });
+
+  const list = elements.get("recommendations-list");
+  assert.equal(list.children.length, 1);
+  assert.equal(list.children[0].children[0].textContent, "Poultry Feed");
+});
+
+test("filters recognized outlets when the recommendation grade is unknown", () => {
+  const { context, elements } = createHarness();
+  context.appTest.renderRecommendations({
+    grade: "toString",
+    options: [{ label: "Local Market" }],
+  });
+
+  assert.equal(elements.get("recommendations-card").classList.contains("hidden"), true);
+  assert.equal(elements.get("recommendations-list").children.length, 0);
+});
+
+test("omits price details that fail backend-equivalent validation", () => {
+  const { context, elements } = createHarness();
+  const validPrice = {
+    currency: "PHP", unit: "kg", low: 10, high: 12, source: "cooperative bulletin",
+    effective_date: "2026-10-01", uncertainty: "indicative range; confirm with the buyer",
+  };
+  const invalidPrices = [
+    { ...validPrice, currency: "USD" },
+    { ...validPrice, unit: "lb" },
+    { ...validPrice, low: -1 },
+    { ...validPrice, low: Infinity },
+    { ...validPrice, high: 9 },
+    { ...validPrice, high: Infinity },
+    { ...validPrice, effective_date: "2026-02-30" },
+    { ...validPrice, effective_date: "2026-1-02" },
+    { ...validPrice, source: "   " },
+  ];
+
+  for (const price_estimate of invalidPrices) {
+    context.appTest.renderRecommendations({
+      grade: "ClassI",
+      options: [{ label: "Local Market", price_estimate }],
+    });
+    const item = elements.get("recommendations-list").children[0];
+    assert.equal(item.children.length, 1);
+    assert.equal(item.children[0].textContent, "Local Market");
+  }
+
+  for (const unit of ["kg", "PHP/kg"]) {
+    context.appTest.renderRecommendations({
+      grade: "ClassI",
+      options: [{ label: "Local Market", price_estimate: { ...validPrice, unit } }],
+    });
+    assert.equal(elements.get("recommendations-list").children[0].children.length, 2);
+  }
 });
 
 test("hides recommendations when options are missing, malformed, empty, or all unavailable", () => {
