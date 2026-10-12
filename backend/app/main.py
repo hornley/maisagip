@@ -48,10 +48,11 @@ async def inspect(
         view_results = []
         for result in exc.view_results:
             serialized = dict(result)
-            preview_bytes = serialized.pop("preview_bytes")
-            serialized["preview_data_url"] = "data:image/jpeg;base64," + base64.b64encode(
-                preview_bytes
-            ).decode("ascii")
+            preview_bytes = serialized.pop("preview_bytes", None)
+            if preview_bytes is not None:
+                serialized["preview_data_url"] = "data:image/jpeg;base64," + base64.b64encode(
+                    preview_bytes
+                ).decode("ascii")
             view_results.append(serialized)
         return JSONResponse(
             status_code=400,

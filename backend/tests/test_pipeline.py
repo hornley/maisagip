@@ -322,11 +322,10 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
     defects = iter([
         [
             {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
-            {"class": "missing_kernels", "confidence": 0.85, "box": [10, 20, 110, 120]},
+            {"class": "discoloration", "confidence": 0.85, "box": [10, 20, 110, 120]},
         ],
         [
             {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
-            {"class": "missing_kernels", "confidence": 0.85, "box": [10, 20, 110, 120]},
             {"class": "mold", "confidence": 0.9, "box": [10, 20, 110, 120]},
         ],
     ])
@@ -340,4 +339,36 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
         data={"confidence_threshold": "0.6"},
     )
     assert with_mold.status_code == 400
-    assert with_mold.json()["view_results"][1]["grade"] == "Class I"
+    comparison = with_mold.json()["view_results"]
+    assert comparison[0]["defects"][-1]["class"] == "discoloration"
+    assert comparison[1]["defects"][-1]["class"] == "mold"
+    assert comparison[0]["grade"] == comparison[1]["grade"]
+
+
+def test_mismatch_serialization_omits_missing_preview_data_url(monkeypatch):
+    from backend.app import main
+
+    def raise_mismatch(*args, **kwargs):
+        raise pipeline.InconsistentInspectionInput(
+            "Different varieties.",
+            [{"view": 1, "variety": {"class": "white_corn"}, "defects": [], "grade": "Extra Class"}],
+        )
+
+    monkeypatch.setattr(main, "inspect_ear", raise_mismatch)
+    response = client.post(
+        "/inspect",
+        files=[("files", ("v1.png", png_bytes(make_corn_image()), "image/png"))],
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Different varieties.",
+        "view_results": [
+            {
+                "view": 1,
+                "variety": {"class": "white_corn"},
+                "defects": [],
+                "grade": "Extra Class",
+            }
+        ],
+    }

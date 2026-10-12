@@ -105,14 +105,14 @@ def test_decode_heic_applies_exif_orientation() -> None:
     exif[274] = 6  # Rotate 90 degrees clockwise.
     source.info["exif"] = exif.tobytes()
 
-    heif_file = pillow_heif.from_pillow(source)
     output = BytesIO()
-    heif_file.save(output)
+    source.save(output, format="HEIF", quality=100, chroma="444")
     fixture = output.getvalue()
 
     decoded = decode_image_bytes(fixture)
 
-    assert decoded.shape[:2] in {(2, 3), (3, 2)}
+    assert decoded.shape == (2, 3, 3)
+    np.testing.assert_allclose(decoded[0, 2], [255, 0, 0], atol=3)
 
     with Image.open(BytesIO(encode_preview_jpeg(decoded))) as preview:
         assert preview.format == "JPEG"
