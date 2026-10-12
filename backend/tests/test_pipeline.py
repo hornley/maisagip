@@ -12,16 +12,21 @@ client = TestClient(app)
 
 
 def test_inconsistent_input_preserves_legacy_alias_and_pickle_state():
-    message = "different varieties"
+    message = {"reason": "different varieties"}
     legacy = pipeline.MixedVarietyError(message)
     assert pipeline.MixedVarietyError is pipeline.InconsistentInspectionInput
-    assert str(legacy) == message
+    assert legacy.args == (message,)
+    assert type(legacy.args[0]) is dict
     assert legacy.view_results == []
 
     view_results = [{"view": 1, "variety": {"class": "yellow_sweet_corn"}, "defects": []}]
     error = pipeline.InconsistentInspectionInput(message, view_results)
+    error.add_note("upload views from one ear")
     restored = pickle.loads(pickle.dumps(error))
-    assert str(restored) == message
+    assert restored.args == (message,)
+    assert type(restored.args[0]) is dict
+    assert str(restored) == str(error)
+    assert restored.__notes__ == ["upload views from one ear"]
     assert restored.view_results == view_results
 
 
@@ -279,7 +284,9 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
         "yellow_sweet_corn",
         "white_corn",
     ]
-    assert [view["defects"][0]["class"] for view in res.json()["view_results"]] == [
-        "mold",
-        "missing_kernels",
+    assert res.json()["view_results"][0]["defects"] == [
+        {"class": "mold", "confidence": 0.9, "box": [10, 20, 30, 40]},
+    ]
+    assert res.json()["view_results"][1]["defects"] == [
+        {"class": "missing_kernels", "confidence": 0.85, "box": [50, 60, 70, 80]},
     ]
