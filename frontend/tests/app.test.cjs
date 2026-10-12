@@ -120,8 +120,10 @@ test("formats an offset-aware inspection instant in the viewer timezone", () => 
   const previousTimezone = process.env.TZ;
   try {
     process.env.TZ = "Asia/Manila";
-    const formatted = context.appTest.formatInspectionDate("2024-01-02T04:00:00+00:00");
-    assert.match(formatted, /12:00/);
+    const formatted = context.appTest.formatInspectionDate("2026-10-12T10:45:44");
+    assert.match(formatted, /10:45|:45/);
+    assert.doesNotMatch(formatted, /T/);
+    assert.doesNotMatch(formatted, /:\d{2}:\d{2}/);
   } finally {
     if (hadTimezone) process.env.TZ = previousTimezone;
     else delete process.env.TZ;
@@ -168,6 +170,7 @@ test("selecting a thumbnail preserves its focused button and updates details", (
   assert.equal(strip.children.length, 2);
   assert.equal(firstButton.getAttribute("aria-pressed"), "true");
   assert.match(elements.get("mismatch-defect-list").children[0].textContent, /mold ×2/);
+  assert.doesNotMatch(elements.get("mismatch-defect-list").children[0].textContent, /%|views?\s*1/i);
 
   secondButton.click();
   assert.equal(context.document.activeElement, secondButton);

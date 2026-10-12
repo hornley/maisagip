@@ -90,6 +90,14 @@ def test_grade_reasons_are_explainable():
     assert "Meets Extra Class criteria" in summary
 
 
+def test_each_passing_grade_has_only_its_matching_criterion():
+    for coverage, label in ((0.0, "Extra Class"), (0.03, "Class I"), (0.06, "Class II")):
+        result = grade(coverage)
+        assert len(result["grade_reasons"]) == 1
+        assert result["grade_reasons"][0].startswith(f"Meets {label} criteria:")
+        assert "Fails" not in result["grade_reasons"][0]
+
+
 def test_class_two_grade_reason_only_explains_assigned_grade():
     result = grade(0.06)
     summary = "\n".join(result["grade_reasons"])
