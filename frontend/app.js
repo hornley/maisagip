@@ -20,6 +20,7 @@ const mismatchDialog = document.getElementById("mismatch-dialog");
 const mismatchClose = document.getElementById("mismatch-close");
 const mismatchPrevious = document.getElementById("mismatch-previous");
 const mismatchNext = document.getElementById("mismatch-next");
+const mismatchThumbnails = document.getElementById("mismatch-thumbnails");
 
 confidenceThreshold.addEventListener("input", () => {
   confidenceThresholdValue.textContent = `${confidenceThreshold.value}%`;
@@ -131,6 +132,7 @@ function showMismatchDialog(detail, results) {
 function renderMismatchView() {
   const result = mismatchResults[mismatchIndex];
   if (!result) return;
+  renderMismatchThumbnails();
   const image = document.getElementById("mismatch-image");
   image.src = previewUrls[result.view - 1];
   image.alt = `Uploaded image for view ${result.view}`;
@@ -160,6 +162,29 @@ function renderMismatchView() {
   document.getElementById("mismatch-counter").textContent = `${mismatchIndex + 1} of ${mismatchResults.length}`;
   mismatchPrevious.disabled = mismatchIndex === 0;
   mismatchNext.disabled = mismatchIndex === mismatchResults.length - 1;
+}
+
+function renderMismatchThumbnails() {
+  mismatchThumbnails.replaceChildren();
+  previewUrls.forEach((url, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mismatch-thumbnail";
+    const selected = index === mismatchIndex;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-label", `Select view ${index + 1}`);
+    button.setAttribute("aria-pressed", String(selected));
+    button.title = `View ${index + 1}`;
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = "";
+    button.appendChild(image);
+    button.addEventListener("click", () => {
+      mismatchIndex = index;
+      renderMismatchView();
+    });
+    mismatchThumbnails.appendChild(button);
+  });
 }
 
 function closeMismatchDialog() {
