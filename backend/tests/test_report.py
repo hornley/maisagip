@@ -9,8 +9,8 @@ from backend.app import report
     [
         ("ExtraClass", {"Local Market", "Export", "Premium Sale", "Processed/Canned"}),
         ("ClassI", {"Local Market", "Premium Sale", "Processed/Canned"}),
-        ("ClassII", {"Local Market", "Processed/Canned"}),
-        ("Reject", set()),
+        ("ClassII", {"Local Market"}),
+        ("Reject", {"Poultry Feed"}),
     ],
 )
 def test_build_report_maps_canonical_grade_to_recommendation_outlets(
