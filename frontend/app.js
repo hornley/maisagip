@@ -347,7 +347,8 @@ function renderRecommendations(recommendations) {
   if (!recommendations || typeof recommendations !== "object" || !Array.isArray(recommendations.options)) return;
 
   recommendations.options.forEach((option) => {
-    if (!option || typeof option !== "object" || typeof option.label !== "string" || !option.label) return;
+    if (!option || typeof option !== "object" || option.status === "unavailable" ||
+        typeof option.label !== "string" || !option.label) return;
     const item = document.createElement("li");
     item.className = "recommendation-item";
 

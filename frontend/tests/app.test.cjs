@@ -179,6 +179,8 @@ test("ignores stale inspection responses and revokes replaced preview URLs", asy
 
 test("renders only eligible recommendation options and validated price details", () => {
   const { context, elements } = createHarness();
+  const indexHtml = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(indexHtml, /<ul id="recommendations-list" class="recommendations-list"><\/ul>/);
   context.appTest.renderRecommendations({
     grade: "ClassI",
     advisory: "Do not render this text.",
@@ -201,22 +203,28 @@ test("renders only eligible recommendation options and validated price details",
   const card = elements.get("recommendations-card");
   const list = elements.get("recommendations-list");
   assert.equal(card.classList.contains("hidden"), false);
-  assert.equal(list.children.length, 3);
+  assert.equal(list.children.length, 2);
   assert.equal(list.children[0].tagName, "li");
   assert.equal(list.children[0].children.length, 2);
   assert.equal(list.children[0].children[0].textContent, "Local Market");
   assert.match(list.children[0].children[1].textContent, /PHP 10–12 \/ kg · source: cooperative bulletin/);
   assert.equal(list.children[1].children[0].textContent, "Premium Sale");
-  assert.equal(list.children[2].children[0].textContent, "Unavailable outlet");
   assert.equal(elements.get("recommendations-summary").textContent, "");
 });
 
-test("hides recommendations when options are missing, malformed, or empty", () => {
+test("hides recommendations when options are missing, malformed, empty, or all unavailable", () => {
   const { context, elements } = createHarness();
   const card = elements.get("recommendations-card");
   const list = elements.get("recommendations-list");
 
-  for (const recommendations of [null, {}, { options: "not an array" }, { options: [] }, { options: [{ reason: "missing label" }] }]) {
+  for (const recommendations of [
+    null,
+    {},
+    { options: "not an array" },
+    { options: [] },
+    { options: [{ reason: "missing label" }] },
+    { options: [{ label: "Unavailable outlet", status: "unavailable" }] },
+  ]) {
     card.classList.remove("hidden");
     context.appTest.renderRecommendations(recommendations);
     assert.equal(card.classList.contains("hidden"), true);
