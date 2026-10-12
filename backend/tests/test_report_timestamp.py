@@ -3,7 +3,7 @@ import re
 
 import numpy as np
 
-from app import report
+from backend.app import report
 
 
 def test_built_report_inspection_timestamp_is_timezone_aware(monkeypatch, tmp_path):
@@ -25,7 +25,7 @@ def test_built_report_inspection_timestamp_is_timezone_aware(monkeypatch, tmp_pa
         "view_count": 1,
         "variety_disagreement": {"present": False},
     }
-    engine_result = {"grade_label": "ExtraClass"}
+    engine_result = {"grade": "ExtraClass", "grade_label": "ExtraClass"}
 
     built = report.build_report(per_view, merged, engine_result)
     parsed = datetime.fromisoformat(built["inspection_date"])
