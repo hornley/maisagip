@@ -77,7 +77,7 @@ function createHarness() {
     "dropzone", "file-input", "file-list", "preview-wrap", "previews", "inspect-btn", "dz-status",
     "error", "result", "confidence-threshold", "confidence-threshold-value", "mismatch-dialog",
     "mismatch-close", "mismatch-previous", "mismatch-next", "mismatch-thumbnails", "mismatch-message",
-    "mismatch-image", "mismatch-view", "mismatch-variety-name", "mismatch-variety-class",
+    "mismatch-image", "mismatch-view", "mismatch-variety-name", "mismatch-grade",
     "mismatch-defect-list", "mismatch-counter", "variety-label", "inspection-date", "annotated",
     "annotation-hotspots", "warning", "grade-value", "coverage-value", "coverage-bar", "grade-reasons",
     "defects", "ear-size", "completeness", "completeness-bar", "recommendations-card",
@@ -133,8 +133,8 @@ test("preserves invalid inspection timestamp text as a fallback", () => {
   assert.equal(context.appTest.formatInspectionDate("not-a-timestamp"), "not-a-timestamp");
 });
 
-function result(view, varietyClass, defects) {
-  return { view, variety: { class: varietyClass }, defects };
+function result(view, varietyClass, defects, grade = "Class I", preview = `data:image/jpeg;base64,${view}A==`) {
+  return { view, variety: { class: varietyClass }, defects, grade, preview_data_url: preview };
 }
 
 test("validates an aligned structured mismatch response", () => {
@@ -146,6 +146,9 @@ test("validates an aligned structured mismatch response", () => {
   assert.equal(context.appTest.isStructuredMismatch(valid, 2), true);
   assert.equal(context.appTest.isStructuredMismatch({ ...valid, view_results: [valid.view_results[1], valid.view_results[0]] }, 2), false);
   assert.equal(context.appTest.isStructuredMismatch({ ...valid, view_results: [result(1, "white_corn", [{ class: 4 }]), valid.view_results[1]] }, 2), false);
+  assert.equal(context.appTest.isStructuredMismatch({ ...valid, view_results: [result(1, "white_corn", [], "Not a grade"), valid.view_results[1]] }, 2), false);
+  assert.equal(context.appTest.isStructuredMismatch({ ...valid, view_results: [result(1, "white_corn", [], "Class I", "blob:test"), valid.view_results[1]] }, 2), false);
+  assert.equal(context.appTest.isStructuredMismatch({ ...valid, view_results: [result(1, "white_corn", [], "Class I", "data:image/png;base64,AAAA"), valid.view_results[1]] }, 2), false);
 });
 
 test("selecting a thumbnail preserves its focused button and updates details", () => {
@@ -173,6 +176,11 @@ test("selecting a thumbnail preserves its focused button and updates details", (
   assert.equal(secondButton.getAttribute("aria-pressed"), "true");
   assert.equal(elements.get("mismatch-view").textContent, "View 2");
   assert.equal(elements.get("mismatch-variety-name").textContent, "Sweet Fortune");
+  assert.equal(elements.get("mismatch-grade").textContent, "Class I");
+  assert.equal(elements.get("mismatch-image").src, "data:image/jpeg;base64,2A==");
+  assert.equal(secondButton.children[0].src, "data:image/jpeg;base64,2A==");
+  assert.doesNotMatch(elements.get("mismatch-variety-name").textContent, /yellow_sweet_corn/);
+  assert.doesNotMatch(indexHtml, /mismatch-variety-class|Canonical class|>Grade<|variety confidence/i);
   assert.equal(elements.get("mismatch-defect-list").children[0].textContent, "No visible defects detected.");
 });
 

@@ -398,8 +398,9 @@ button.primary.small { width: auto; padding: 6px 13px; font-size: 0.76rem; }
 .mismatch-details { display: flex; flex-direction: column; gap: 18px; padding: 6px 0; }
 .mismatch-view { color: var(--brand-700); font-size: 1.05rem; font-weight: 800; }
 .mismatch-variety { display: flex; flex-direction: column; gap: 3px; }
+.mismatch-variety-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .mismatch-variety strong { font-size: 1.25rem; color: var(--brand-900); }
-.mismatch-canonical { color: var(--muted); font-family: var(--font-mono); font-size: 0.75rem; }
+.mismatch-grade { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; background: var(--brand-100); color: var(--brand-700); font-size: 0.75rem; font-weight: 800; }
 .mismatch-defect-list { display: flex; flex-direction: column; gap: 7px; margin-top: 7px; padding-left: 18px; color: var(--ink-soft); font-size: 0.9rem; }
 .mismatch-no-defects { color: var(--muted); font-style: italic; }
 .mismatch-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }

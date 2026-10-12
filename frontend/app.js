@@ -113,9 +113,13 @@ function isStructuredMismatch(data, fileCount) {
   const views = data.view_results.map((entry) => entry?.view);
   if (!views.every((view) => Number.isInteger(view) && view >= 1 && view <= fileCount)) return false;
   if (new Set(views).size !== fileCount || !views.every((view, index) => view === index + 1)) return false;
+  const grades = new Set(["Extra Class", "Class I", "Class II", "Reject"]);
+  const jpegDataUrl = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/;
   return data.view_results.every((entry) =>
     entry && typeof entry.variety?.class === "string" && Array.isArray(entry.defects) &&
-    entry.defects.every((defect) => defect && typeof defect.class === "string")
+    entry.defects.every((defect) => defect && typeof defect.class === "string") &&
+    grades.has(entry.grade) && typeof entry.preview_data_url === "string" &&
+    jpegDataUrl.test(entry.preview_data_url)
   );
 }
 
@@ -135,11 +139,11 @@ function renderMismatchView() {
   if (!result) return;
   updateMismatchThumbnailState();
   const image = document.getElementById("mismatch-image");
-  image.src = previewUrls[result.view - 1];
+  image.src = result.preview_data_url;
   image.alt = `Uploaded image for view ${result.view}`;
   document.getElementById("mismatch-view").textContent = `View ${result.view}`;
   document.getElementById("mismatch-variety-name").textContent = varietyDisplayName(result.variety.class);
-  document.getElementById("mismatch-variety-class").textContent = `Canonical class: ${formatLabel(result.variety.class)}`;
+  document.getElementById("mismatch-grade").textContent = result.grade;
 
   const counts = new Map();
   result.defects.forEach((defect) => {
@@ -167,7 +171,7 @@ function renderMismatchView() {
 
 function buildMismatchThumbnails() {
   mismatchThumbnails.replaceChildren();
-  previewUrls.forEach((url, index) => {
+  mismatchResults.forEach((result, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "mismatch-thumbnail";
@@ -177,7 +181,7 @@ function buildMismatchThumbnails() {
     button.setAttribute("aria-pressed", String(selected));
     button.title = `View ${index + 1}`;
     const image = document.createElement("img");
-    image.src = url;
+    image.src = result.preview_data_url;
     image.alt = "";
     button.appendChild(image);
     button.addEventListener("click", () => {
