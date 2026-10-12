@@ -342,7 +342,7 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
     comparison = with_mold.json()["view_results"]
     assert comparison[0]["defects"][-1]["class"] == "discoloration"
     assert comparison[1]["defects"][-1]["class"] == "mold"
-    assert comparison[0]["grade"] == comparison[1]["grade"]
+    assert [result["grade"] for result in comparison] == ["Class I", "Class I"]
 
 
 def test_mismatch_serialization_omits_missing_preview_data_url(monkeypatch):
