@@ -99,10 +99,6 @@ def test_config_cannot_change_grade_safety_or_label_policy(monkeypatch, tmp_path
             lambda config: config.update(required_price_adjustments=[]),
             "required_price_adjustments must be a non-empty array of non-empty strings",
         ),
-        (
-            lambda config: config.update(rates={}),
-            "rates must be an array",
-        ),
     ],
 )
 def test_malformed_config_raises_clear_value_error(tmp_path, monkeypatch, mutate, message):
@@ -121,6 +117,14 @@ def test_invalid_json_config_raises_clear_value_error(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="invalid JSON"):
         _result("ClassI")
+
+
+def test_malformed_configured_rates_are_ignored(tmp_path, monkeypatch):
+    config = json.loads(recommendations.CONFIG_PATH.read_text(encoding="utf-8"))
+    config["rates"] = {}
+    monkeypatch.setattr(recommendations, "CONFIG_PATH", _write_config(tmp_path, config))
+
+    assert all("price_estimate" not in option for option in _result()["options"])
 
 
 def test_unrelated_defects_do_not_add_grade_excluded_outlets():

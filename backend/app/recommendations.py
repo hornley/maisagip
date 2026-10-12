@@ -79,8 +79,6 @@ def _config() -> Mapping[str, Any]:
             "Invalid recommendation config: required_price_adjustments must be a non-empty array "
             "of non-empty strings"
         )
-    if not isinstance(config.get("rates"), list):
-        raise ValueError("Invalid recommendation config: rates must be an array")
     return config
 
 
@@ -208,7 +206,7 @@ def build_recommendations(
     if safety and grade_key != "Reject":
         eligible_ids = eligible_ids.intersection({"local_market"})
     as_of = _as_date(inspection_date) or date.today()
-    rows = operational_config["rates"] if price_data is None else (
+    rows = operational_config.get("rates", []) if price_data is None else (
         price_data.get("rates", []) if isinstance(price_data, Mapping) else price_data
     )
     rows = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else []
