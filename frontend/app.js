@@ -240,8 +240,16 @@ function render(report) {
   errorEl.classList.add("hidden");
 
   document.getElementById("variety-label").textContent = varietyDisplayName(report.variety.class);
+  const inspectionDate = new Date(report.inspection_date);
+  let formattedInspectionDate = report.inspection_date;
+  if (!Number.isNaN(inspectionDate.getTime())) {
+    formattedInspectionDate = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(inspectionDate);
+  }
   document.getElementById("inspection-date").textContent =
-    `Inspected ${report.inspection_date} · ${report.view_count} view(s)`;
+    `Inspected ${formattedInspectionDate} · ${report.view_count} views`;
   const annotatedImage = document.getElementById("annotated");
   annotatedImage.src = report.image_url;
   renderAnnotationHotspots(report);
@@ -283,8 +291,7 @@ function render(report) {
     report.defects.forEach((d) => {
       const chip = document.createElement("span");
       chip.className = "chip defective";
-      const views = d.views_seen.map((v) => v + 1).join(",");
-      chip.innerHTML = `${d.class.replace(/_/g, " ")} <span class="conf-val">×${d.merged_count} · cov ${pct(d.coverage)} · views ${views}</span>`;
+      chip.innerHTML = `${d.class.replace(/_/g, " ")} <span class="conf-val">×${d.merged_count}</span>`;
       defectsBox.appendChild(chip);
     });
   }

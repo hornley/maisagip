@@ -90,10 +90,22 @@ def test_grade_reasons_are_explainable():
     assert "Meets Extra Class criteria" in summary
 
 
-def test_grade_reasons_use_percentages():
+def test_class_two_grade_reason_only_explains_assigned_grade():
+    result = grade(0.06)
+    summary = "\n".join(result["grade_reasons"])
+    assert len(result["grade_reasons"]) == 1
+    assert "Meets Class II criteria" in summary
+    assert "10%" in summary
+    assert "Fails" not in summary
+    assert "5%" not in summary
+
+
+def test_reject_reason_is_concise():
     result = grade(0.2643)
     summary = "\n".join(result["grade_reasons"])
+    assert len(result["grade_reasons"]) == 1
+    assert "Reject" in summary
     assert "26.43%" in summary
-    assert "5%" in summary
+    assert "Class II cutoff" in summary
     assert "10%" in summary
-    assert "0.2643" not in summary
+    assert "Fails" not in summary
