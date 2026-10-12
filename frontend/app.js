@@ -235,19 +235,21 @@ function varietyDisplayName(className) {
     : className.replace(/_/g, " ");
 }
 
+function formatInspectionDate(value) {
+  const inspectionDate = new Date(value);
+  if (Number.isNaN(inspectionDate.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(inspectionDate);
+}
+
 function render(report) {
   resultEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
 
   document.getElementById("variety-label").textContent = varietyDisplayName(report.variety.class);
-  const inspectionDate = new Date(report.inspection_date);
-  let formattedInspectionDate = report.inspection_date;
-  if (!Number.isNaN(inspectionDate.getTime())) {
-    formattedInspectionDate = new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(inspectionDate);
-  }
+  const formattedInspectionDate = formatInspectionDate(report.inspection_date);
   document.getElementById("inspection-date").textContent =
     `Inspected ${formattedInspectionDate} · ${report.view_count} views`;
   const annotatedImage = document.getElementById("annotated");

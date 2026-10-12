@@ -109,9 +109,21 @@ function createHarness() {
     selectFiles,
     showMismatchDialog,
     renderRecommendations,
+    formatInspectionDate,
   };`, context);
   return { context, elements, revoked };
 }
+
+test("formats an offset-aware inspection instant in the viewer timezone", () => {
+  const { context } = createHarness();
+  const formatted = context.appTest.formatInspectionDate("2024-01-02T04:00:00+00:00");
+  assert.match(formatted, /12:00/);
+});
+
+test("preserves invalid inspection timestamp text as a fallback", () => {
+  const { context } = createHarness();
+  assert.equal(context.appTest.formatInspectionDate("not-a-timestamp"), "not-a-timestamp");
+});
 
 function result(view, varietyClass, defects) {
   return { view, variety: { class: varietyClass }, defects };

@@ -90,7 +90,7 @@ def build_report(per_view, merged, engine_result, confidence_threshold=config.DE
     from datetime import datetime
 
     report_id = new_report_id()
-    inspection_date = datetime.now()
+    inspection_date = datetime.now().astimezone()
 
     views_out = []
     annotated_views = []
@@ -99,7 +99,7 @@ def build_report(per_view, merged, engine_result, confidence_threshold=config.DE
             entry["image"],
             entry["detections"],
             entry["variety"]["class"],
-            engine_result["grade_label"],
+            engine_result["grade"],
         )
         annotated_views.append(annotated)
         _save(report_id, f"v{idx}", annotated)
