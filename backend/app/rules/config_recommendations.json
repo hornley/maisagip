@@ -4,7 +4,7 @@
   "channels": [
     {
       "id": "local_market",
-      "label": "Local market",
+      "label": "Local Market",
       "checks": ["buyer acceptance and applicable local quality requirements"],
       "reason": "Visible appearance and the assigned grade can support a local-market candidate, subject to buyer checks."
     },
@@ -16,13 +16,13 @@
     },
     {
       "id": "premium_sale",
-      "label": "Premium sale",
+      "label": "Premium Sale",
       "checks": ["buyer specification", "size and appearance acceptance"],
       "reason": "A premium outlet is only a candidate when the visible appearance and completeness support buyer review."
     },
     {
       "id": "food_processing_canned",
-      "label": "Food processing/canned",
+      "label": "Processed/Canned",
       "checks": ["processor specification", "processing suitability and required food-safety tests"],
       "reason": "Processing may be a practical outlet, but suitability and food-safety requirements need external confirmation."
     }

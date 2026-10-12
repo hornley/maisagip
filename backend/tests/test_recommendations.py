@@ -18,37 +18,56 @@ def _result(grade="ClassI", defects=None, price_data=None, **traits):
     return build_recommendations(grade, "yellow_sweet_corn", defects or [], traits or {"ear_size": "large", "kernel_completeness": .96}, price_data, "2026-10-09")
 
 
-def test_accepted_returns_visual_market_candidates_and_current_price():
+def _labels(grade, defects=None, price_data=None):
+    return {option["label"] for option in _result(grade, defects, price_data)["options"]}
+
+
+def test_grade_filters_outlet_labels_exactly():
+    assert _labels("ExtraClass") == {"Local Market", "Export", "Premium Sale", "Processed/Canned"}
+    assert _labels("ClassI") == {"Local Market", "Premium Sale", "Processed/Canned"}
+    assert _labels("ClassII") == {"Local Market", "Processed/Canned"}
+    assert _labels("Reject") == set()
+
+
+def test_mold_leaves_only_local_market_for_non_reject_grades():
+    for grade in ("ExtraClass", "ClassI", "ClassII"):
+        assert _labels(grade, ["mold"]) == {"Local Market"}
+    assert _labels("Reject", ["mold"]) == set()
+
+
+def test_ear_decay_leaves_only_local_market_for_non_reject_grades():
+    for grade in ("ExtraClass", "ClassI", "ClassII"):
+        assert _labels(grade, ["ear_decay"]) == {"Local Market"}
+    assert _labels("Reject", ["ear_decay"]) == set()
+
+
+def test_unrelated_defects_do_not_add_grade_excluded_outlets():
+    assert _labels("ClassI", ["insect_damage"]) == {"Local Market", "Premium Sale", "Processed/Canned"}
+    assert _labels("ClassII", ["insect_damage"]) == {"Local Market", "Processed/Canned"}
+    assert _labels("Reject", ["insect_damage"]) == set()
+
+
+def test_options_only_expose_label_and_validated_price():
     result = _result(price_data=[_price()])
-    labels = {option["label"] for option in result["options"]}
-    assert {"Local market", "Export", "Premium sale", "Food processing/canned"} <= labels
-    local = next(o for o in result["options"] if o["label"] == "Local market")
-    assert local["status"] == "candidate"
+    local = next(o for o in result["options"] if o["label"] == "Local Market")
     assert local["price_estimate"]["low"] == 10
-    assert "required_external_checks" in local
+    assert set(local) == {"label", "price_estimate"}
+    for option in result["options"]:
+        assert not {"status", "reason", "required_external_checks"}.intersection(option)
 
 
-def test_reject_has_safe_practical_alternative():
-    result = _result("Reject")
-    feed = next(o for o in result["options"] if o["label"] == "Poultry/feed alternative")
-    assert feed["status"] == "requires_check"
+def test_price_is_never_emitted_for_ineligible_channel():
+    result = _result("ClassI", price_data=[_price(market="export")])
+    assert all("price_estimate" not in option for option in result["options"])
 
 
-def test_mold_omits_feed_and_advises_hold_testing():
-    result = _result("Reject", ["mold"])
-    labels = {option["label"] for option in result["options"]}
-    assert "Poultry/feed alternative" not in labels
-    hold = next(o for o in result["options"] if o["label"] == "Hold for qualified inspection/testing")
-    assert hold["status"] == "requires_check"
-
-
-def test_stale_price_is_omitted():
+def test_stale_price_is_omitted_from_eligible_local_market_option():
     result = _result(price_data=[_price(valid_through="2026-10-08")])
-    local = next(o for o in result["options"] if o["label"] == "Local market")
-    assert "price_estimate" not in local
+    local = next(o for o in result["options"] if o["label"] == "Local Market")
+    assert set(local) == {"label"}
 
 
-def test_missing_adjustment_factor_is_omitted():
+def test_missing_adjustment_factor_is_omitted_from_eligible_local_market_option():
     result = _result(price_data=[_price(adjustment_factors={"defect_coverage": 1, "size": 1})])
-    local = next(o for o in result["options"] if o["label"] == "Local market")
-    assert "price_estimate" not in local
+    local = next(o for o in result["options"] if o["label"] == "Local Market")
+    assert set(local) == {"label"}

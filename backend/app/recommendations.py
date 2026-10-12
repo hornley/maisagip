@@ -15,6 +15,12 @@ from typing import Any, Mapping, Sequence, TypedDict
 
 
 CONFIG_PATH = Path(__file__).parent / "rules" / "config_recommendations.json"
+GRADE_CHANNELS = {
+    "ExtraClass": {"local_market", "export", "premium_sale", "food_processing_canned"},
+    "ClassI": {"local_market", "premium_sale", "food_processing_canned"},
+    "ClassII": {"local_market", "food_processing_canned"},
+    "Reject": set(),
+}
 PRICE_FIELDS = {
     "market", "variety", "grade_product_basis", "currency", "unit", "low",
     "high", "adjustment_factors", "source", "effective_date", "valid_through",
@@ -155,52 +161,28 @@ def build_recommendations(
     policy = _config()
     grade_key = _grade_key(grade)
     variety_text = variety if isinstance(variety, str) else ""
-    traits = traits if isinstance(traits, Mapping) else {}
-    defect_names, explicit_coverage = _defect_view(defects)
+    defect_names, _ = _defect_view(defects)
     safety = sorted(defect_names.intersection(policy["safety_exclusions"]))
+    eligible_ids = GRADE_CHANNELS.get(grade_key, set()).copy()
+    if safety and grade_key != "Reject":
+        eligible_ids.intersection_update({"local_market"})
     as_of = _as_date(inspection_date) or date.today()
     rows = policy.get("rates", []) if price_data is None else (
         price_data.get("rates", []) if isinstance(price_data, Mapping) else price_data
     )
     rows = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else []
 
-    coverage_text = (f"explicit visible defect coverage is {explicit_coverage:.1%}"
-                     if explicit_coverage is not None else "visible defect coverage was not supplied")
-    completeness = traits.get("kernel_completeness")
-    if (isinstance(completeness, bool) or not isinstance(completeness, (int, float)) or
-            not math.isfinite(float(completeness)) or not 0 <= float(completeness) <= 1):
-        completeness = None
-    size = traits.get("ear_size")
     options = []
     for channel in policy["channels"]:
-        if safety:
-            status, reason = "unavailable", (
-                "A configured safety exclusion is visible (" + ", ".join(safety) +
-                "); hold the lot pending qualified inspection/testing."
-            )
-        elif grade_key == "Reject":
-            status, reason = "unavailable", "The assigned Reject grade does not support this outlet as a current candidate."
-        elif channel["id"] == "premium_sale" and (size not in {"large", "medium"} or completeness is not None and completeness < 0.9):
-            status, reason = "requires_check", "Visible size/completeness may limit premium acceptance; confirm the buyer specification."
-        else:
-            status, reason = "candidate", channel["reason"] + f" ({coverage_text})."
-        option = {"label": channel["label"], "status": status, "reason": reason,
-                  "required_external_checks": list(channel["checks"])}
+        if channel["id"] not in eligible_ids:
+            continue
+        option = {"label": channel["label"]}
         for row in rows:
             estimate = _matching_price(row, channel["id"], variety_text, grade_key, as_of, policy["required_price_adjustments"])
-            if estimate is not None and status != "unavailable":
+            if estimate is not None:
                 option["price_estimate"] = estimate
                 break
         options.append(option)
 
-    if safety:
-        options.append({"label": policy["reject"]["hold_label"], "status": "requires_check",
-                        "reason": "Hold the lot pending qualified inspection/testing; image evidence cannot establish safety.",
-                        "required_external_checks": list(policy["reject"]["hold_checks"])})
-    elif grade_key == "Reject":
-        if not safety:
-            options.append({"label": policy["reject"]["feed_label"], "status": "requires_check",
-                            "reason": "Reject grade may have a feed alternative, but image evidence cannot validate feed safety.",
-                            "required_external_checks": list(policy["reject"]["feed_checks"])})
     return {"grade": grade_key, "variety": variety_text, "options": options,
             "safety_exclusions": safety}
