@@ -1,5 +1,9 @@
+import json
 from datetime import date, timedelta
 
+import pytest
+
+from backend.app import recommendations
 from backend.app.recommendations import build_recommendations
 
 
@@ -20,6 +24,12 @@ def _result(grade="ClassI", defects=None, price_data=None, **traits):
 
 def _labels(grade, defects=None, price_data=None):
     return {option["label"] for option in _result(grade, defects, price_data)["options"]}
+
+
+def _write_config(tmp_path, config):
+    path = tmp_path / "recommendations.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    return path
 
 
 def test_recommendation_labels_match_exact_grade_policy():
@@ -57,6 +67,58 @@ def test_ear_decay_leaves_only_local_market_for_non_reject_grades():
 
 def test_reject_with_both_safety_defects_still_recommends_poultry_feed():
     assert _labels("Reject", ["mold", "ear_decay"]) == {"Poultry Feed"}
+
+
+def test_reject_eligibility_is_enforced_even_if_config_disagrees(monkeypatch, tmp_path):
+    config = json.loads(recommendations.CONFIG_PATH.read_text(encoding="utf-8"))
+    config["grade_channels"]["Reject"] = ["local_market"]
+    monkeypatch.setattr(recommendations, "CONFIG_PATH", _write_config(tmp_path, config))
+
+    assert _labels("Reject", ["mold", "ear_decay"]) == {"Poultry Feed"}
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda config: config.update(grade_channels=[]), "grade_channels must be an object"),
+        (lambda config: config["grade_channels"].pop("ClassII"), "missing required grade: ClassII"),
+        (
+            lambda config: config["grade_channels"].update(ClassII=["unknown"]),
+            "unknown channel ID 'unknown' for grade ClassII",
+        ),
+        (
+            lambda config: config["channels"].__setitem__(0, {"id": "local_market"}),
+            "channel at index 0 must have a non-empty label",
+        ),
+        (
+            lambda config: (
+                config["channels"].pop(4),
+                config["grade_channels"].update(Reject=[]),
+            ),
+            "a poultry_feed channel is required for Reject recommendations",
+        ),
+        (
+            lambda config: config["channels"][4].update(label="Other Outlet"),
+            "poultry_feed channel must be labeled 'Poultry Feed'",
+        ),
+    ],
+)
+def test_malformed_config_raises_clear_value_error(tmp_path, monkeypatch, mutate, message):
+    config = json.loads(recommendations.CONFIG_PATH.read_text(encoding="utf-8"))
+    mutate(config)
+    monkeypatch.setattr(recommendations, "CONFIG_PATH", _write_config(tmp_path, config))
+
+    with pytest.raises(ValueError, match=message):
+        _result("ClassI")
+
+
+def test_invalid_json_config_raises_clear_value_error(tmp_path, monkeypatch):
+    path = tmp_path / "recommendations.json"
+    path.write_text("{", encoding="utf-8")
+    monkeypatch.setattr(recommendations, "CONFIG_PATH", path)
+
+    with pytest.raises(ValueError, match="invalid JSON"):
+        _result("ClassI")
 
 
 def test_unrelated_defects_do_not_add_grade_excluded_outlets():

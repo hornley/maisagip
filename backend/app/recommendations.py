@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence, TypedDict
 
 
 CONFIG_PATH = Path(__file__).parent / "rules" / "config_recommendations.json"
+REQUIRED_GRADES = ("ExtraClass", "ClassI", "ClassII", "Reject")
 PRICE_FIELDS = {
     "market", "variety", "grade_product_basis", "currency", "unit", "low",
     "high", "adjustment_factors", "source", "effective_date", "valid_through",
@@ -49,8 +50,59 @@ class PriceEstimate(TypedDict):
 
 
 def _config() -> Mapping[str, Any]:
-    with CONFIG_PATH.open("r", encoding="utf-8") as stream:
-        return json.load(stream)
+    try:
+        with CONFIG_PATH.open("r", encoding="utf-8") as stream:
+            config = json.load(stream)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Invalid recommendation config: invalid JSON") from exc
+    if not isinstance(config, Mapping):
+        raise ValueError("Invalid recommendation config: root must be an object")
+
+    channels = config.get("channels")
+    if not isinstance(channels, list):
+        raise ValueError("Invalid recommendation config: channels must be an array")
+    channel_ids: set[str] = set()
+    for index, channel in enumerate(channels):
+        if not isinstance(channel, Mapping):
+            raise ValueError(f"Invalid recommendation config: channel at index {index} must be an object")
+        channel_id, label = channel.get("id"), channel.get("label")
+        if not isinstance(channel_id, str) or not channel_id.strip():
+            raise ValueError(f"Invalid recommendation config: channel at index {index} must have a non-empty id")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError(f"Invalid recommendation config: channel at index {index} must have a non-empty label")
+        if channel_id in channel_ids:
+            raise ValueError(f"Invalid recommendation config: duplicate channel ID {channel_id!r}")
+        channel_ids.add(channel_id)
+
+    grade_channels = config.get("grade_channels")
+    if not isinstance(grade_channels, Mapping):
+        raise ValueError("Invalid recommendation config: grade_channels must be an object")
+    for grade in REQUIRED_GRADES:
+        if grade not in grade_channels:
+            raise ValueError(f"Invalid recommendation config: missing required grade: {grade}")
+    for grade, ids in grade_channels.items():
+        if not isinstance(grade, str) or not grade.strip():
+            raise ValueError("Invalid recommendation config: grade_channels keys must be non-empty strings")
+        if not isinstance(ids, list):
+            raise ValueError(f"Invalid recommendation config: channels for grade {grade} must be an array")
+        for channel_id in ids:
+            if not isinstance(channel_id, str) or not channel_id.strip():
+                raise ValueError(f"Invalid recommendation config: invalid channel ID for grade {grade}")
+            if channel_id not in channel_ids:
+                raise ValueError(
+                    f"Invalid recommendation config: unknown channel ID {channel_id!r} for grade {grade}"
+                )
+    poultry_feed = next((channel for channel in channels if channel["id"] == "poultry_feed"), None)
+    if poultry_feed is None:
+        raise ValueError("Invalid recommendation config: a poultry_feed channel is required for Reject recommendations")
+    if poultry_feed["label"] != "Poultry Feed":
+        raise ValueError("Invalid recommendation config: poultry_feed channel must be labeled 'Poultry Feed'")
+
+    for key in ("safety_exclusions", "required_price_adjustments"):
+        values = config.get(key)
+        if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
+            raise ValueError(f"Invalid recommendation config: {key} must be an array of non-empty strings")
+    return config
 
 
 def _as_date(value: Any) -> date | None:
@@ -173,8 +225,9 @@ def build_recommendations(
     variety_text = variety if isinstance(variety, str) else ""
     defect_names, _ = _defect_view(defects)
     safety = sorted(defect_names.intersection(policy["safety_exclusions"]))
-    grade_channels = policy.get("grade_channels", {})
-    eligible_ids = set(grade_channels.get(grade_key, []))
+    grade_channels = policy["grade_channels"]
+    # Reject is a product invariant: configuration cannot route it to another outlet.
+    eligible_ids = {"poultry_feed"} if grade_key == "Reject" else set(grade_channels.get(grade_key, []))
     if safety and grade_key != "Reject":
         eligible_ids.intersection_update({"local_market"})
     as_of = _as_date(inspection_date) or date.today()
