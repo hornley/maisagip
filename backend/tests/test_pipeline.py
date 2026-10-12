@@ -1,4 +1,5 @@
 from io import BytesIO
+import base64
 import pickle
 
 import numpy as np
@@ -260,8 +261,14 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
     monkeypatch.setattr(pipeline.models, "classify_variety", lambda image: [next(labels)])
 
     defects = iter([
-        [{"class": "mold", "confidence": 0.9, "box": [10, 20, 30, 40]}],
-        [{"class": "missing_kernels", "confidence": 0.85, "box": [50, 60, 70, 80]}],
+        [
+            {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+            {"class": "mold", "confidence": 0.9, "box": [10, 20, 110, 120]},
+        ],
+        [
+            {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+            {"class": "missing_kernels", "confidence": 0.85, "box": [0, 0, 600, 800]},
+        ],
     ])
     monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: next(defects))
 
@@ -285,8 +292,52 @@ def test_confident_mixed_variety_views_return_actionable_400(monkeypatch):
         "white_corn",
     ]
     assert res.json()["view_results"][0]["defects"] == [
-        {"class": "mold", "confidence": 0.9, "box": [10, 20, 30, 40]},
+        {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+        {"class": "mold", "confidence": 0.9, "box": [10, 20, 110, 120]},
     ]
     assert res.json()["view_results"][1]["defects"] == [
-        {"class": "missing_kernels", "confidence": 0.85, "box": [50, 60, 70, 80]},
+        {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+        {"class": "missing_kernels", "confidence": 0.85, "box": [0, 0, 600, 800]},
     ]
+
+    results = res.json()["view_results"]
+    assert [result["view"] for result in results] == [1, 2]
+    assert [result["variety"]["class"] for result in results] == [
+        "yellow_sweet_corn",
+        "white_corn",
+    ]
+    assert [result["grade"] for result in results] == ["Class I", "Reject"]
+    for result in results:
+        assert result["preview_data_url"].startswith("data:image/jpeg;base64,")
+        preview = base64.b64decode(result["preview_data_url"].split(",", 1)[1])
+        with Image.open(BytesIO(preview)) as decoded:
+            assert decoded.format == "JPEG"
+            assert decoded.mode == "RGB"
+
+    labels = iter([
+        {"class": "yellow_sweet_corn", "confidence": 0.9},
+        {"class": "white_corn", "confidence": 0.9},
+    ])
+    monkeypatch.setattr(pipeline.models, "classify_variety", lambda image: [next(labels)])
+    defects = iter([
+        [
+            {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+            {"class": "missing_kernels", "confidence": 0.85, "box": [10, 20, 110, 120]},
+        ],
+        [
+            {"class": "corn_ear", "confidence": 0.9, "box": [0, 0, 600, 800]},
+            {"class": "missing_kernels", "confidence": 0.85, "box": [10, 20, 110, 120]},
+            {"class": "mold", "confidence": 0.9, "box": [10, 20, 110, 120]},
+        ],
+    ])
+    monkeypatch.setattr(pipeline.models, "detect_defects", lambda image: next(defects))
+    with_mold = client.post(
+        "/inspect",
+        files=[
+            ("files", ("v1.png", png_bytes(make_corn_image()), "image/png")),
+            ("files", ("v2.png", png_bytes(make_corn_image()), "image/png")),
+        ],
+        data={"confidence_threshold": "0.6"},
+    )
+    assert with_mold.status_code == 400
+    assert with_mold.json()["view_results"][1]["grade"] == "Class I"

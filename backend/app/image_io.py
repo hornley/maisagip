@@ -52,6 +52,18 @@ def encode_canonical_jpeg(image: Image.Image | np.ndarray) -> bytes:
     return output.getvalue()
 
 
+def encode_preview_jpeg(
+    image: Image.Image | np.ndarray, max_dimension: int = 640, quality: int = 80
+) -> bytes:
+    """Encode an RGB image as a bounded, metadata-free browser preview JPEG."""
+    source = Image.fromarray(image) if isinstance(image, np.ndarray) else image
+    preview = source.convert("RGB").copy()
+    preview.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+    output = BytesIO()
+    preview.save(output, format="JPEG", quality=quality, exif=b"")
+    return output.getvalue()
+
+
 def normalize_image_bytes(data: bytes) -> tuple[np.ndarray, bytes]:
     """Decode image bytes and return the pixels plus canonical JPEG bytes."""
     image = decode_image_bytes(data)

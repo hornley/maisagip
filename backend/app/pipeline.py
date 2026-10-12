@@ -72,17 +72,35 @@ def inspect_ear(images_bytes, confidence_threshold=config.DEFAULT_CONFIDENCE_THR
             f"view {view_number}={variety}"
             for view_number, variety in merged["variety_disagreement"]["conflicts"]
         )
-        raise InconsistentInspectionInput(
-            "These images appear to show different corn varieties "
-            f"({conflicts}). Upload views of a single ear/variety, then reinspect.",
-            [
+        view_results = []
+        for view_number, view in enumerate(per_view, start=1):
+            isolated = merge_views([view], confidence_threshold)
+            view_grade = _engine.evaluate(
+                view["variety"]["confidence"],
+                isolated["defect_coverage"],
+                isolated["severe_present"],
+                view["traits"]["kernel_completeness"],
+                [
+                    d["confidence"]
+                    for d in view["detections"]
+                    if d["class"] != "corn_ear"
+                ],
+                confidence_threshold=confidence_threshold,
+            )
+            view_results.append(
                 {
                     "view": view_number,
                     "variety": view["variety"],
                     "defects": view["detections"],
+                    "grade": view_grade["grade_label"],
+                    "preview_bytes": image_io.encode_preview_jpeg(view["image"]),
                 }
-                for view_number, view in enumerate(per_view, start=1)
-            ],
+            )
+
+        raise InconsistentInspectionInput(
+            "These images appear to show different corn varieties "
+            f"({conflicts}). Upload views of a single ear/variety, then reinspect.",
+            view_results,
         )
 
     defect_confs = [d["max_conf"] for d in merged["defects"]]

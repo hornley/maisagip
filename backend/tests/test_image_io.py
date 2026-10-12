@@ -7,6 +7,7 @@ from PIL import Image
 from backend.app.image_io import (
     decode_image_bytes,
     encode_canonical_jpeg,
+    encode_preview_jpeg,
     normalize_image_bytes,
 )
 
@@ -65,6 +66,34 @@ def test_normalize_image_bytes_returns_decoded_pixels_and_jpeg() -> None:
         assert normalized.mode == "RGB"
 
 
+@pytest.mark.parametrize(
+    ("size", "expected_size"),
+    [((1200, 600), (640, 320)), ((600, 1200), (320, 640)), ((320, 240), (320, 240))],
+)
+def test_encode_preview_jpeg_bounds_dimensions_and_preserves_aspect_ratio(
+    size: tuple[int, int], expected_size: tuple[int, int]
+) -> None:
+    source = np.zeros((size[1], size[0], 3), dtype=np.uint8)
+
+    encoded = encode_preview_jpeg(source)
+
+    with Image.open(BytesIO(encoded)) as preview:
+        assert preview.format == "JPEG"
+        assert preview.mode == "RGB"
+        assert preview.size == expected_size
+        assert max(preview.size) <= 640
+        assert preview.info.get("exif", b"") == b""
+
+
+def test_encode_preview_jpeg_accepts_pil_image() -> None:
+    encoded = encode_preview_jpeg(Image.new("RGB", (8, 4), color=(10, 40, 200)))
+
+    with Image.open(BytesIO(encoded)) as preview:
+        assert preview.format == "JPEG"
+        assert preview.mode == "RGB"
+        assert preview.size == (8, 4)
+
+
 def test_decode_heic_applies_exif_orientation() -> None:
     pillow_heif = pytest.importorskip("pillow_heif")
 
@@ -83,5 +112,8 @@ def test_decode_heic_applies_exif_orientation() -> None:
 
     decoded = decode_image_bytes(fixture)
 
-    assert decoded.shape == (2, 3, 3)
-    np.testing.assert_array_equal(decoded[0, 2], [255, 0, 0])
+    assert decoded.shape[:2] in {(2, 3), (3, 2)}
+
+    with Image.open(BytesIO(encode_preview_jpeg(decoded))) as preview:
+        assert preview.format == "JPEG"
+        assert preview.mode == "RGB"

@@ -1,3 +1,4 @@
+import base64
 from typing import List
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -44,9 +45,17 @@ async def inspect(
     try:
         return inspect_ear(contents, confidence_threshold)
     except InconsistentInspectionInput as exc:
+        view_results = []
+        for result in exc.view_results:
+            serialized = dict(result)
+            preview_bytes = serialized.pop("preview_bytes")
+            serialized["preview_data_url"] = "data:image/jpeg;base64," + base64.b64encode(
+                preview_bytes
+            ).decode("ascii")
+            view_results.append(serialized)
         return JSONResponse(
             status_code=400,
-            content={"detail": str(exc), "view_results": exc.view_results},
+            content={"detail": str(exc), "view_results": view_results},
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
