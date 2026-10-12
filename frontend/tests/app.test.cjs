@@ -116,8 +116,16 @@ function createHarness() {
 
 test("formats an offset-aware inspection instant in the viewer timezone", () => {
   const { context } = createHarness();
-  const formatted = context.appTest.formatInspectionDate("2024-01-02T04:00:00+00:00");
-  assert.match(formatted, /12:00/);
+  const hadTimezone = Object.prototype.hasOwnProperty.call(process.env, "TZ");
+  const previousTimezone = process.env.TZ;
+  try {
+    process.env.TZ = "Asia/Manila";
+    const formatted = context.appTest.formatInspectionDate("2024-01-02T04:00:00+00:00");
+    assert.match(formatted, /12:00/);
+  } finally {
+    if (hadTimezone) process.env.TZ = previousTimezone;
+    else delete process.env.TZ;
+  }
 });
 
 test("preserves invalid inspection timestamp text as a fallback", () => {
