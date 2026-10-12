@@ -39,6 +39,16 @@ def test_mold_leaves_only_local_market_for_non_reject_grades():
     assert _labels("Reject", ["mold"]) == {"Poultry Feed"}
 
 
+def test_mold_detection_mapping_shapes_apply_safety_exclusion():
+    cases = [
+        {"class": "mold", "confidence": 0.9},
+        {"classes": ["mold"]},
+        [{"class": "mold", "confidence": 0.9}],
+    ]
+    for defects in cases:
+        assert {option["label"] for option in _result("ClassI", defects)["options"]} == {"Local Market"}
+
+
 def test_ear_decay_leaves_only_local_market_for_non_reject_grades():
     for grade in ("ExtraClass", "ClassI", "ClassII"):
         assert _labels(grade, ["ear_decay"]) == {"Local Market"}
@@ -85,3 +95,16 @@ def test_missing_adjustment_factor_is_omitted_from_eligible_local_market_option(
     result = _result(price_data=[_price(adjustment_factors={"defect_coverage": 1, "size": 1})])
     local = next(o for o in result["options"] if o["label"] == "Local Market")
     assert set(local) == {"label"}
+
+
+def test_price_with_non_finite_adjusted_range_is_omitted():
+    overflowed_range = _price(low=1e308, high=1e308, adjustment_factors={
+        "defect_coverage": 2, "size": 1, "completeness": 1,
+    })
+    overflowed_multiplier = _price(adjustment_factors={
+        "defect_coverage": 1e308, "size": 1e308, "completeness": 1,
+    })
+    for price in (overflowed_range, overflowed_multiplier):
+        result = _result(price_data=[price])
+        local = next(o for o in result["options"] if o["label"] == "Local Market")
+        assert set(local) == {"label"}

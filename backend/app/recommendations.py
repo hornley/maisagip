@@ -15,12 +15,6 @@ from typing import Any, Mapping, Sequence, TypedDict
 
 
 CONFIG_PATH = Path(__file__).parent / "rules" / "config_recommendations.json"
-GRADE_CHANNELS = {
-    "ExtraClass": {"local_market", "export", "premium_sale", "food_processing_canned"},
-    "ClassI": {"local_market", "premium_sale", "food_processing_canned"},
-    "ClassII": {"local_market"},
-    "Reject": {"poultry_feed"},
-}
 PRICE_FIELDS = {
     "market", "variety", "grade_product_basis", "currency", "unit", "low",
     "high", "adjustment_factors", "source", "effective_date", "valid_through",
@@ -70,10 +64,23 @@ def _as_date(value: Any) -> date | None:
         return None
 
 
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _defect_view(defects: Any) -> tuple[set[str], float | None]:
     """Read only explicit visual defect names and explicit coverage."""
     if isinstance(defects, Mapping):
-        raw_classes = defects.get("classes", defects.get("defects", []))
+        if isinstance(defects.get("class"), str) and not ({"classes", "defects"} & defects.keys()):
+            raw_classes = [defects]
+        else:
+            raw_classes = defects.get("classes", defects.get("defects", []))
         coverage = defects.get("coverage")
     else:
         raw_classes, coverage = defects or [], None
@@ -110,10 +117,8 @@ def _matching_price(record: Any, channel: str, variety: Any, grade: str,
     if record.get("currency") != "PHP" or record.get("unit") not in {"kg", "PHP/kg"}:
         return None
     low, high = record.get("low"), record.get("high")
-    if (isinstance(low, bool) or isinstance(high, bool) or
-            not isinstance(low, (int, float)) or not isinstance(high, (int, float)) or
-            not math.isfinite(float(low)) or not math.isfinite(float(high)) or
-            float(low) < 0 or float(high) < float(low)):
+    low_number, high_number = _finite_number(low), _finite_number(high)
+    if low_number is None or high_number is None or low_number < 0 or high_number < low_number:
         return None
     effective, valid_through = _as_date(record.get("effective_date")), _as_date(record.get("valid_through"))
     if effective is None or valid_through is None or effective > as_of or as_of > valid_through:
@@ -126,10 +131,15 @@ def _matching_price(record: Any, channel: str, variety: Any, grade: str,
         factor = factors.get(name)
         if isinstance(factor, Mapping):
             factor = factor.get("factor")
-        if (isinstance(factor, bool) or not isinstance(factor, (int, float)) or
-                not math.isfinite(float(factor)) or float(factor) <= 0):
+        factor_number = _finite_number(factor)
+        if factor_number is None or factor_number <= 0:
             return None
-        multiplier *= float(factor)
+        multiplier *= factor_number
+        if not math.isfinite(multiplier):
+            return None
+    adjusted_low, adjusted_high = low_number * multiplier, high_number * multiplier
+    if not math.isfinite(adjusted_low) or not math.isfinite(adjusted_high):
+        return None
     source = record.get("source")
     if not isinstance(source, str) or not source.strip():
         return None
@@ -137,8 +147,8 @@ def _matching_price(record: Any, channel: str, variety: Any, grade: str,
         "market": channel,
         "currency": "PHP",
         "unit": "kg",
-        "low": round(float(low) * multiplier, 2),
-        "high": round(float(high) * multiplier, 2),
+        "low": round(adjusted_low, 2),
+        "high": round(adjusted_high, 2),
         "source": source.strip(),
         "effective_date": effective.isoformat(),
         "uncertainty": "indicative range; confirm with the buyer",
@@ -163,7 +173,8 @@ def build_recommendations(
     variety_text = variety if isinstance(variety, str) else ""
     defect_names, _ = _defect_view(defects)
     safety = sorted(defect_names.intersection(policy["safety_exclusions"]))
-    eligible_ids = GRADE_CHANNELS.get(grade_key, set()).copy()
+    grade_channels = policy.get("grade_channels", {})
+    eligible_ids = set(grade_channels.get(grade_key, []))
     if safety and grade_key != "Reject":
         eligible_ids.intersection_update({"local_market"})
     as_of = _as_date(inspection_date) or date.today()
