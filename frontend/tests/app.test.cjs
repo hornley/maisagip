@@ -232,6 +232,8 @@ test("renders only eligible recommendation options and validated price details",
       },
       { label: "Premium Sale" },
       { label: "Export" },
+      { label: "Candidate" },
+      { label: "Unknown Outlet" },
       { label: "   " },
       { label: "Unavailable outlet", status: "unavailable" },
       { reason: "Malformed option" },
@@ -249,6 +251,25 @@ test("renders only eligible recommendation options and validated price details",
   assert.equal(list.children[1].children[0].textContent, "Premium Sale");
   assert.doesNotMatch(list.children[0].textContent, /candidate|reason|buyer confirmation|unavailable|local_market/i);
   assert.deepEqual(list.children.map((item) => item.children[0].textContent), ["Local Market", "Premium Sale"]);
+});
+
+test("uses an exact eligible outlet allowlist for each report grade", () => {
+  const { context, elements } = createHarness();
+  const labels = ["Local Market", "Export", "Premium Sale", "Processed/Canned", "Poultry Feed", "Candidate", "Unknown Outlet", " "];
+  const cases = [
+    ["ExtraClass", ["Local Market", "Export", "Premium Sale", "Processed/Canned"]],
+    ["ClassI", ["Local Market", "Premium Sale", "Processed/Canned"]],
+    ["ClassII", ["Local Market"]],
+    ["Reject", ["Poultry Feed"]],
+  ];
+
+  for (const [grade, expected] of cases) {
+    context.appTest.renderRecommendations({ grade, options: labels.map((label) => ({ label })) });
+    assert.deepEqual(
+      elements.get("recommendations-list").children.map((item) => item.children[0].textContent),
+      expected,
+    );
+  }
 });
 
 test("preserves the Reject to Poultry Feed recommendation", () => {
@@ -308,6 +329,23 @@ test("omits price details that fail backend-equivalent validation", () => {
       options: [{ label: "Local Market", price_estimate: { ...validPrice, unit } }],
     });
     assert.equal(elements.get("recommendations-list").children[0].children.length, 2);
+  }
+});
+
+test("does not display arbitrary uncertainty text and supplies the known caveat", () => {
+  const { context, elements } = createHarness();
+  const validPrice = {
+    currency: "PHP", unit: "kg", low: 10, high: 12, source: "cooperative bulletin",
+    effective_date: "2026-10-01",
+  };
+  for (const uncertainty of ["pretend certified", "indicative range; confirm with the buyer", undefined]) {
+    context.appTest.renderRecommendations({
+      grade: "ClassI",
+      options: [{ label: "Local Market", price_estimate: { ...validPrice, uncertainty } }],
+    });
+    const detail = elements.get("recommendations-list").children[0].children[1].textContent;
+    assert.match(detail, /indicative range; confirm with the buyer/);
+    assert.doesNotMatch(detail, /pretend certified/);
   }
 });
 

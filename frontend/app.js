@@ -363,8 +363,7 @@ function renderRecommendations(recommendations) {
     if (!option || typeof option !== "object" || option.status === "unavailable" ||
         typeof option.label !== "string" || !option.label.trim()) return;
     const labelText = option.label.trim();
-    const knownOutlet = Object.values(eligibleOutlets).some((outlets) => outlets.has(labelText));
-    if (knownOutlet && (!eligibility || !eligibility.has(labelText))) return;
+    if (!eligibility || !eligibility.has(labelText)) return;
 
     const item = document.createElement("li");
     item.className = "recommendation-item";
@@ -384,9 +383,8 @@ function renderRecommendations(recommendations) {
         isIsoCalendarDate(price.effective_date)) {
       const priceEl = document.createElement("p");
       priceEl.className = "recommendation-price";
-      const uncertainty = typeof price.uncertainty === "string" && price.uncertainty.trim()
-        ? price.uncertainty.trim()
-        : "indicative range; confirm with the buyer";
+      const caveat = "indicative range; confirm with the buyer";
+      const uncertainty = price.uncertainty === caveat ? price.uncertainty : caveat;
       const unit = price.unit === "PHP/kg" ? "kg" : price.unit;
       priceEl.textContent = `PHP ${price.low}–${price.high} / ${unit} · source: ${price.source.trim()} · effective ${price.effective_date} · ${uncertainty}`;
       item.appendChild(priceEl);
