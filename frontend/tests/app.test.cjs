@@ -120,6 +120,9 @@ test("formats an offset-aware inspection instant in the viewer timezone", () => 
   const previousTimezone = process.env.TZ;
   try {
     process.env.TZ = "Asia/Manila";
+    const offsetFormatted = context.appTest.formatInspectionDate("2024-01-02T04:00:00+00:00");
+    assert.match(offsetFormatted, /12:00/);
+
     const formatted = context.appTest.formatInspectionDate("2026-10-12T10:45:44");
     assert.match(formatted, /10:45|:45/);
     assert.doesNotMatch(formatted, /T/);
