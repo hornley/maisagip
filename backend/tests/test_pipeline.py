@@ -1,4 +1,5 @@
 from io import BytesIO
+import pickle
 
 import numpy as np
 from fastapi.testclient import TestClient
@@ -8,6 +9,20 @@ from backend.app import config, image_io, pipeline
 from backend.app.main import app
 
 client = TestClient(app)
+
+
+def test_inconsistent_input_preserves_legacy_alias_and_pickle_state():
+    message = "different varieties"
+    legacy = pipeline.MixedVarietyError(message)
+    assert pipeline.MixedVarietyError is pipeline.InconsistentInspectionInput
+    assert str(legacy) == message
+    assert legacy.view_results == []
+
+    view_results = [{"view": 1, "variety": {"class": "yellow_sweet_corn"}, "defects": []}]
+    error = pipeline.InconsistentInspectionInput(message, view_results)
+    restored = pickle.loads(pickle.dumps(error))
+    assert str(restored) == message
+    assert restored.view_results == view_results
 
 
 def make_corn_image(defective=False):

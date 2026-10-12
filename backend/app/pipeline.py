@@ -11,9 +11,12 @@ _engine = GradeEngine()
 class InconsistentInspectionInput(ValueError):
     """Raised when confident views identify more than one corn variety."""
 
-    def __init__(self, message, view_results):
+    def __init__(self, message, view_results=None):
         super().__init__(message)
-        self.view_results = view_results
+        self.view_results = [] if view_results is None else view_results
+
+    def __reduce__(self):
+        return type(self), (str(self), self.view_results)
 
 
 # Keep the provisional name import-compatible for callers of the first slice.
