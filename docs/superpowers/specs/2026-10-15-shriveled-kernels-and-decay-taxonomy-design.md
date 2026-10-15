@@ -45,9 +45,11 @@ with no localized shriveled-kernel box is not automatically plump.
   the generated Colab README so current instructions consistently use the
   eight-class order and the new class-6 name. Historical specs and plans retain
   their original wording as records of earlier decisions.
-- Keep severity, grading, and recommendation rules unchanged. `decay` retains
-  the current `ear_decay` behavior; `shriveled_kernels` is an ordinary coverage
-  defect and does not become a severe-class override.
+- `decay` retains the current `ear_decay` behavior. `shriveled_kernels` is an
+  ordinary coverage defect and does not become a severe-class override.
+- Do not change production grading in this taxonomy work. After a reliable
+  appearance prediction is integrated into inspection, apply the appearance
+  grade policy below; no manual dry/plump choice is added to each inspection.
 - Keep the appearance-state API, stored rows, crop workflow, and classifier
   independent from detector class labels.
 
@@ -67,6 +69,32 @@ with no localized shriveled-kernel box is not automatically plump.
 - Preserve the generic out-of-range behavior: outputs with IDs outside the
   configured class list remain ignored.
 
+## Future grading policy for dry appearance
+
+The appearance result is currently annotation/training data and is not an input
+to production inspection. The separate appearance workflow must pass its
+per-ear data-support gate and held-out evaluation before a prediction is used
+for automatic grading. Until then, the production grade rules stay unchanged.
+
+When reliable appearance predictions are available to inspection, apply this
+precedence:
+
+1. Defect-box coverage of 10% or more is Reject, regardless of appearance
+   state.
+2. With `dry_appearance`, at least one non-ear detector defect (including
+   `shriveled_kernels`) and coverage below 10% yields Class II.
+3. With `dry_appearance`, no non-ear detector defects, and coverage below 10%,
+   the grade is Class I. Dry appearance alone therefore prevents Extra Class.
+4. Without `dry_appearance`, keep the existing coverage thresholds.
+
+The binary dry/plump state does not estimate how much of the ear is affected.
+The localized `shriveled_kernels` boxes contribute approximate area through the
+existing bounding-box coverage calculation. Pixel-level dry-area measurement
+would require segmentation masks or another explicit severity annotation.
+
+This policy does not measure moisture content, and `dry_appearance` predictions
+must not be interpreted as a moisture reading.
+
 ## Compatibility and scope
 
 The serialized class string changes from `ear_decay` to `decay` in detector
@@ -76,8 +104,10 @@ no active label migration is required. External consumers that compare the old
 string name will need to use `decay`.
 
 This work does not restore archived annotations, mutate active data, train or
-evaluate a model, regenerate bundles, change appearance-state values, or alter
-grading and recommendations.
+evaluate a model, regenerate bundles, change appearance-state values, add a
+manual appearance input to inspection, or change current production grading.
+Future appearance integration is when the dry-appearance grade policy above
+will take effect.
 
 ## Existing checks to keep aligned
 
@@ -109,5 +139,8 @@ not include running the test suite.
    be recorded independently.
 4. The archived 18 boxes and current active labels remain byte-for-byte
    untouched by this work.
-5. Grade thresholds, severity overrides, and recommendation rules retain
-   their current behavior.
+5. Current production grade thresholds, severity overrides, and recommendation
+   rules remain unchanged until reliable appearance prediction is integrated.
+6. When integrated, 10% or more box coverage yields Reject; below 10%, dry
+   appearance with any non-ear detector defect yields Class II, while dry
+   appearance without other defects yields Class I.
