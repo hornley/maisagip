@@ -6,15 +6,24 @@ Create a Google Colab notebook and a companion dataset ZIP for training one corn
 
 ## Data
 
-The dataset ZIP contains the contents of `Corn ear segmentation.unified.yolov11`: `train`, `valid`, `test`, and `data.yaml`. Its sole class is `corn-ear` (ID 0). Preserve the existing splits:
+The dataset ZIP contains a re-split copy of `Corn ear segmentation.unified.yolov11`, with `train`, `valid`, `test`, and `data.yaml` at its root. The source folder remains unchanged. Its sole class is `corn-ear` (ID 0); each polygon row represents one ear mask.
 
-| Split | Images | Masks |
+Use an 80/10/10 split, stratified by source filename prefix. The 993 images round to 794 train, 99 validation, and 100 test images. The allocation is deterministic with seed 42. Group byte-identical images by SHA-256 and keep every duplicate group in one split. Sort image names and source prefixes before seeded shuffling; distribute duplicate groups round-robin across train, validation, and test, then fill each source's target counts from its shuffled single-image groups.
+
+| Source prefix | Total images | Train | Validation | Test |
+| --- | ---: | ---: | ---: | ---: |
+| `det_v7` | 813 | 650 | 81 | 82 |
+| `ear_seg_v3` | 180 | 144 | 18 | 18 |
+| **Total** | **993** | **794** | **99** | **100** |
+
+| Split | Images | Ear masks |
 | --- | ---: | ---: |
-| Train | 889 | 1,504 |
-| Validation | 66 | 120 |
-| Test | 38 | 71 |
+| Train | 794 | 1,352 |
+| Validation | 99 | 172 |
+| Test | 100 | 171 |
+| **Total** | **993** | **1,695** |
 
-Do not alter the source datasets or regenerate the split. The held-out test set is small, so report metrics as preliminary.
+The 80/10/10 split is approximate after rounding (79.96% / 9.97% / 10.07%). The source contains three pairs of byte-identical images; no duplicate group crosses a split. Report test metrics as preliminary because the test set is still limited.
 
 ## Notebook flow
 
@@ -30,4 +39,4 @@ The notebook does not compare models, train a classifier, or run training on the
 
 The notebook should fail clearly on a corrupt ZIP, missing GPU, invalid class IDs, missing image/label pairs, or unexpected dataset classes. Artifact checks cover notebook JSON and ZIP integrity; model training is not run as part of artifact creation.
 
-The single-class conversion assumes each retained polygon outlines a corn ear. The `damaged corn` source polygons were mapped to `corn-ear`; if those polygons instead trace damage regions, they should be excluded before training. The 38-image test split limits confidence in test metrics.
+The single-class conversion assumes each retained polygon outlines a corn ear. The `damaged corn` source polygons were mapped to `corn-ear`; if those polygons instead trace damage regions, they should be excluded before training. The 100-image test split still limits confidence in test metrics.
