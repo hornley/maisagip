@@ -1,11 +1,14 @@
 # Maisagip — Dataset Creation Protocol
 
-This document is the step-by-step procedure for building the annotated dataset that trains and evaluates the Maisagip pipeline. Follow it exactly: the training scripts, validator, and evaluator all depend on the naming and layout conventions below.
+This document describes the two datasets used by the Maisagip inspection pipeline: multi-ear photos with instance masks for YOLO11s-seg, and single-ear views with variety labels and defect boxes for EfficientNetV2-S and YOLO11s. Grading rules consume the per-ear defect results. The repository's classifier/detector validator covers the single-ear datasets; segmentation labels need a separate Ultralytics segmentation workflow.
 
 ## 1. Final layout (what the pipeline expects)
 
 ```
 data/raw/
+├── ear-segmentation/
+│   ├── images/{train,val,test}/scene001_frame001.jpg …
+│   └── labels/{train,val,test}/scene001_frame001.txt  (YOLO polygons; one row per ear)
 ├── classifier/
 │   ├── white_corn/
 │   │   └── ear001_v1.jpg … ear001_v4.jpg, ear002_v1.jpg …
@@ -21,14 +24,14 @@ data/raw/
 ```
 
 - The variety folder the photo sits in **is** the classifier label: `white_corn` or `yellow_sweet_corn`.
-- The detector uses the identical photo set; images and labels are paired by filename.
-- Filename pattern `ear{id}_v{n}` is mandatory — the leak-free splitter groups views by ear using it.
+- The detector uses single-ear photos/crops with matching YOLO box labels. The four views of one ear share an `ear{id}` so the splitter keeps them together.
+- The segmenter uses multi-ear photos, with one polygon row for each visible ear instance. Split by source photo or capture/video session so near-duplicate frames cannot cross splits.
 
 ## 2. Class definitions (fixed order — do not reorder)
 
 | Index | Class | Notes |
 | --- | --- | --- |
-| 0 | `corn_ear` | whole-ear box, mandatory in every label file |
+| 0 | `corn_ear` | whole-ear box, mandatory in each per-ear detector label; ear mask class in segmentation labels |
 | 1 | `mold` | fungal growth — severe class |
 | 2 | `insect_damage` | weevil/borer damage — severe class |
 | 3 | `discoloration` | abnormal kernel color |
@@ -40,6 +43,9 @@ data/raw/
 Use the class table above as the annotation-tool configuration source so export
 indices match. If you maintain a local `obj.names` file, its lines must use this
 exact order.
+
+The segmenter has a separate one-class map: class `0` is `corn_ear`. Its label
+rows are polygons, not the eight-class detector boxes listed above.
 
 Fixed-order export reference:
 
@@ -67,6 +73,10 @@ Fixed-order export reference:
 
 ## 4. Capture rig
 
+Build the segmentation set from photos that resemble the intended multi-ear input. Include varied ear counts, positions, sizes, lighting, and backgrounds. Keep each ear distinguishable and mostly visible; annotate each visible ear instance separately. If frames come from a video or burst, keep all frames from one source in the same split.
+
+The classifier and defect datasets use isolated ears and retain the controlled four-view capture below.
+
 - **Turntable** (cheap lazy susan / rotating display) on a flat surface.
 - **Camera**: phone on a fixed stand, eye-level, ~40 cm from the ear, fixed zoom, fixed exposure, no flash.
 - **Scene**: uniform background, diffused indoor light (no harsh shadows, no direct sunlight).
@@ -85,7 +95,7 @@ Fixed-order export reference:
 4. Copy the **same files** into `data/raw/detector/images/` (identical names).
 5. JPG or PNG only. Keep original resolution; do not resize or crop.
 
-## 6. Annotation (detector boxes)
+## 6. Annotation (per-ear defect detector boxes)
 
 **Tool**: LabelImg (free, local, YOLO export) or CVAT/Roboflow (export YOLO `.txt`). Configure the tool with the class table above, or with a local `obj.names` file containing that exact order.
 
@@ -100,9 +110,13 @@ Per image:
 
 Export to `data/raw/detector/labels/` with the same filename stem as the image (`ear001_v1.txt`).
 
+### Ear-segmentation labels for multi-ear photos
+
+Keep these labels in the separate `ear-segmentation` dataset. Use Ultralytics YOLO segmentation format, with one normalized polygon row per ear instance. Class index `0` must mean `corn_ear`, as required by the inference code. These are ear masks only; defect annotations remain bounding boxes in the separate single-ear detector dataset.
+
 ## 7. Ground truth CSV (one row per ear)
 
-`data/raw/ground_truth.csv` is pre-created with the header:
+`data/raw/ground_truth.csv` has one row per physical ear, not one row per multi-ear photo. Use a stable ear ID to associate that ear with its variety, observed defect coverage, counts, and reference grade. The header is:
 
 ```csv
 ear_id,variety,coverage,mold_count,insect_count,missing_count,other_count,grade
@@ -126,7 +140,7 @@ This CSV is the reference for `eval/eval_merge.py` — it is how the merge's cor
 # 1. Check pairing, class range, mandatory corn_ear, per-ear consistency
 python -m training.validate_dataset
 
-# 2. Leak-free per-ear 80/10/10 split (run only when capture+labels are final)
+# 2. Leak-free per-ear 80/10/10 split for classifier and detector data
 python -m training.make_dataset_split --seed 42
 
 # 3. Train (GPU recommended)
@@ -140,7 +154,15 @@ python -m eval.eval_detector
 python -m eval.eval_merge --images data/raw/detector/images --csv data/raw/ground_truth.csv
 ```
 
-Weights land in `data/weights/`; the app auto-switches from demo to real providers when they exist.
+The classifier and defect detector use real providers when their configured weights load. The ear segmenter is available only when `data/weights/best.pt` loads; otherwise a single-photo inspection uses the non-segmented fallback.
+
+These repository commands train the variety classifier and the legacy YOLO11n
+box detector. They do not train the current YOLO11s defect checkpoint or the
+YOLO11s-seg model. Train the segmenter separately from the polygon-labeled
+`ear-segmentation` dataset and place its checkpoint at
+`data/weights/best.pt`. Inference expects the YOLO11s defect checkpoint at
+`data/weights/yolo11s_colab_best_2026-10-08.pt` and the EfficientNetV2-S weights
+at `data/weights/efficientnetv2_s_corn.pt`.
 
 ### YOLO comparison experiment
 
@@ -225,6 +247,8 @@ required before a detector can predict `shriveled_kernels`.
 ## 9. QC checklist before training
 
 - [ ] `validate_dataset` reports zero problems
+- [ ] Each multi-ear segmentation photo has one class-0 polygon per visible ear
+- [ ] Frames from the same capture/video session stay in one segmentation split
 - [ ] Spot-check ~10% of images visually — missed defects are the #1 silent error
 - [ ] Every defect class appears in enough boxes (≥150/class minimum)
 - [ ] Same defect = same class across views (spot-check several ears)
@@ -244,6 +268,8 @@ required before a detector can predict `shriveled_kernels`.
 | Renaming views out of rotation order | Merge dedup "adjacent views" logic sees wrong neighbors |
 | Same physical defect labeled with different classes per view | One defect counted as several; coverage inflated |
 | Missing `corn_ear` box | Validator fails the file; traits unavailable |
+| Using detector boxes as segmentation labels | Segmenter cannot learn pixel masks from box-only rows |
+| Splitting adjacent frames across train and test | Near-duplicate images inflate held-out performance |
 | Whole-ear defects boxed as small patches | Coverage underestimated; ear area mistaken |
 | Reusing an ear id across ears | Splitter treats them as one ear (leakage) |
 | Editing split folders by hand | Leakage between train/val/test |

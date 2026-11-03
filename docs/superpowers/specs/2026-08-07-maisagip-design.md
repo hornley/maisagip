@@ -3,6 +3,8 @@
 Date: 2026-08-07
 Project: Maisagip — A Hybrid Deep Learning Framework for Corn Ear Quality Grading and Defect Detection Using Computer Vision (CS 307 Thesis 1).
 
+> Historical: this records the original single-ear YOLOv11n design. The multi-ear segmentation pipeline is documented in the project README and dataset protocol.
+
 ## Goal
 
 Build a working end-to-end skeleton of the Maisagip system so the web app, pipeline, rule engine, reports, training harness, and evaluation scripts all run today — with real model weights swappable in later when the annotated dataset is ready.

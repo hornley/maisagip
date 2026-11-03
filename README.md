@@ -2,7 +2,7 @@
 
 A Hybrid Deep Learning Framework for Corn Ear Quality Grading and Defect Detection Using Computer Vision (CS 307 Thesis 1).
 
-Full pipeline skeleton: FastAPI backend, EfficientNetV2-S variety classifier, YOLOv11n defect detector, multi-view ear merge, PNS/BAFS-based coverage rule engine, mobile-responsive web frontend, training harness, and evaluation scripts. The web app runs end-to-end today in **demo mode** (heuristic providers) and switches to the trained models automatically once weights are dropped in.
+Full pipeline: FastAPI backend, YOLO11s-seg ear instance segmentation, EfficientNetV2-S variety classification, YOLO11s defect detection, multi-view ear merge, PNS/BAFS-based coverage rule engine, mobile-responsive web frontend, training harness, and evaluation scripts. Missing model weights use the documented demo or unavailable providers.
 
 ## Quickstart
 
@@ -12,15 +12,15 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload --port 8000
 ```
 
-Open http://localhost:8000, upload one photo — or all 4 roll views of an ear — and inspect. HEIC, HEIF, JPG, JPEG, and PNG inputs are accepted. `GET /health` shows which providers are active.
+Open http://localhost:8000 and upload one photo containing one or more ears, or multiple roll views of a single ear. HEIC, HEIF, JPG, JPEG, and PNG inputs are accepted. `GET /health` shows which providers are active.
 
 ## Architecture
 
 ```
 backend/app/
-├── main.py       POST /inspect (multi-file), GET /report/<id>(/views/<n>/image), /health, / (frontend)
-├── pipeline.py   decode each view -> classify -> detect -> traits -> merge -> rules -> report
-├── models.py     EfficientNetV2-S + YOLOv11n loaders with demo fallback
+├── main.py       POST /inspect (single or multi-file), report/view and multi-ear preview routes, /health, / (frontend)
+├── pipeline.py   one photo -> segment ears -> analyze and grade each ear; multi-photo -> merge views
+├── models.py     EfficientNetV2-S + YOLO11s + YOLO11s-seg providers
 ├── views.py      multi-view merge: variety vote, defect dedup, coverage %, traits
 ├── traits.py     ear size + kernel completeness from detection geometry
 ├── rules/        coverage-based RDSS engine + config_rules.json (PNS-based)
@@ -31,14 +31,14 @@ Pipeline stages are independent, testable units. Heavy ML stacks (`torch`, `ultr
 
 ## Inspection flow
 
-1. Upload 1..N photos of an ear (recommended: 4 roll views, 0°/90°/180°/270°).
-2. Each view is independently classified for variety and scanned for defects.
-3. `views.py` merges the views into one ear-level result:
+1. **One photo:** YOLO11s-seg finds each ear instance and returns a mask. The app crops and masks each ear, then analyzes each crop independently.
+2. **Multiple photos:** these are treated as views of one ear (recommended: four roll views at 0°/90°/180°/270°); the app does not segment multiple ears in a multi-photo upload.
+3. For each ear crop or view, EfficientNetV2-S predicts variety and YOLO11s detects defects with bounding boxes. `views.py` merges multiple views into one ear-level result:
    - **Variety:** majority vote; ties break on confidence.
    - **Defects:** the same physical defect seen in adjacent views is deduplicated by size similarity → merged count; each class reports coverage, confidence, and which views show it.
    - **Defect coverage %:** Σ per-physical-defect largest-area / largest ear-box area.
    - Kernel completeness = worst (min) across views; ear size from the longest ear box.
-4. The rule engine assigns grade + utilization recommendation, the report saves per-view annotated images + a grid, and the UI shows provenance ("missing_kernels · views 3,4").
+4. The rule engine assigns a grade and utilization recommendation per ear. Ear segmentation isolates the ear; defect coverage is still estimated from defect bounding-box areas relative to the ear box. The report shows an individual result for each ear in a single-photo inspection, or merged view results for a multi-photo inspection.
 
 ## Grading rules (PNS-based, in `rules/config_rules.json`)
 
@@ -51,18 +51,22 @@ Pipeline stages are independent, testable units. Heavy ML stacks (`torch`, `ultr
 
 Utilization overrides: coverage ≥ 10% → reject; any mold/insect damage → animal feed (non-human); else < 5% → human consumption; < 10% → food processing. Numbers in the JSON are your authoritative thresholds verbatim, so calibrating later requires zero code changes.
 
-## Demo mode vs. real models
+## Demo mode vs. trained models
 
 | Provider | When active |
 | --- | --- |
 | Demo classifier (color heuristic) | `data/weights/efficientnetv2_s_corn.pt` missing or fails to load |
 | Real EfficientNetV2-S | weights present |
-| Demo detector (rule-based boxes) | `data/weights/corn_yolov11n.pt` missing |
-| Real YOLOv11n | weights present |
+| Demo defect detector (rule-based boxes) | `data/weights/yolo11s_colab_best_2026-10-08.pt` missing or fails to load |
+| Real YOLO11s defect detector | `data/weights/yolo11s_colab_best_2026-10-08.pt` loads successfully |
+| YOLO11s-seg ear segmenter | `data/weights/best.pt` loads successfully; used for single-photo, multi-ear inspection |
+| Segmenter unavailable | `data/weights/best.pt` missing or fails to load; one-photo inspection falls back to the existing non-segmented path |
+
+The defect detector predicts boxes, not masks. Older detector checkpoints may not include the appended `shriveled_kernels` class and must be retrained to predict it.
 
 ## Dataset conventions
 
-Capture protocol (per ear): fixed camera + turntable; roll the ear 90° between shots → `ear001_v1.jpg … ear001_v4.jpg`. The resting contact band on the display is never visible — accepted as a documented delimitation.
+For variety and defect training, capture each ear with a fixed camera and turntable; roll it 90° between shots → `ear001_v1.jpg … ear001_v4.jpg`. The segmenter dataset is separate and contains photos with one or more ears, each annotated as its own mask. The resting contact band is never visible in the per-ear views — accepted as a documented delimitation.
 
 HEIC/HEIF inputs are decoded with `pillow-heif`, orientation-corrected, converted to RGB, and stored for training as canonical JPEGs. The untouched upload is archived under `data/raw/originals/` with its dataset-relative path. Install this support with the normal dependencies:
 
@@ -78,7 +82,11 @@ python -m training.normalize_heic_dataset --input-root data/raw --originals-root
 
 The migration never removes HEIC/HEIF files or overwrites an existing JPEG. It requires POSIX descriptor-relative no-follow filesystem I/O and fails closed on platforms without it. Corrupt files are reported and must be reviewed before training.
 
-**Detector class order (fixed — matches `config.DEFECT_CLASSES`):**
+### Per-ear defect detector annotations
+
+The defect model uses one-ear images or crops with YOLO bounding-box labels. Multi-ear photos belong to the separate segmentation dataset; they need one polygon mask per visible ear instance. The segmenter expects the ear class at index 0. Keep images from the same source capture or video in one split to avoid near-duplicate leakage.
+
+**Defect detector class order (fixed — matches `config.DEFECT_CLASSES`):**
 
 ```
 0  corn_ear      3  discoloration
@@ -94,15 +102,21 @@ with their original classes, but the detector must be retrained with the
 expanded dataset to predict the new class.
 
 Annotation protocol:
-- One `corn_ear` box per view (drives size/completeness).
+- For each single-ear view/crop, include one `corn_ear` box (drives size/completeness).
 - Box every visible defect, in **every view where it appears**, same class per physical spot.
 - Deformity and extensive discoloration get ear-sized boxes — coverage % handles them.
 - Box visibly dried or shriveled kernel regions as `shriveled_kernels`, using a tight box around the affected patch rather than the whole ear unless the defect truly spans the whole ear.
-- YOLO export: `class x y w h` (normalized), filename = image stem.
+- Defect detector export: YOLO box format `class x y w h` (normalized), filename = image stem. This box format is not a segmentation label.
+
+For the ear segmenter, export YOLO segmentation polygons instead: annotate every ear separately, including multiple ears in the same photo. Do not infer an ear mask from a `corn_ear` bounding box.
 
 The Dataset page includes a local annotation desk. Click **Draw boxes** for an imported ear, choose a class, drag boxes over the processed image, and save each view. Existing YOLO labels can be edited in place; the tool requires a `corn_ear` box before saving. To replace an uploaded `.txt`, expand **Annotate**, choose **replace .txt**, and click **Save labels**.
 
+The Dataset page edits defect detector boxes; use a segmentation annotation tool to create ear polygons for the separate multi-ear segmentation dataset.
+
 ```bash
+data/raw/ear-segmentation/images/{train,val,test}/scene001_frame001.jpg ...
+data/raw/ear-segmentation/labels/{train,val,test}/scene001_frame001.txt ...
 data/raw/classifier/{white_corn,yellow_sweet_corn}/ear001_v1.jpg ...
 data/raw/detector/images/ear001_v1.jpg ...
 data/raw/detector/labels/ear001_v1.txt ...
@@ -118,11 +132,10 @@ python -m training.train_classifier --epochs 30
 python -m training.train_detector --epochs 100
 ```
 
-The existing single-model detector command uses `yolo11n.pt` by default, writes its
-dataset definition to `data/detector/data.yaml`, and copies only its best checkpoint
-to `data/weights/corn_yolov11n.pt`. That is the production training path; comparison
-runs do not change or populate `data/weights/`. The app auto-switches to real mode
-when production weights are present.
+`training.train_detector` remains a YOLO11n box-detector training utility and writes
+`data/weights/corn_yolov11n.pt`; it does not create the YOLO11s inference checkpoint
+or the YOLO11s-seg ear segmenter. The current inference weights are loaded from the
+paths listed above. Comparison runs do not change or populate `data/weights/`.
 
 ### Combined Colab experiment
 
