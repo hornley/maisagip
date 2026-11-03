@@ -1,5 +1,7 @@
 # YOLO Model Comparison Results
 
+These results compare box-detection models. They do not evaluate the separate YOLO11s-seg ear-instance segmenter used by the multi-ear inspection pipeline.
+
 ## Evaluation Metrics
 
 The object-detection models are evaluated using Precision, Recall, F1 score,
