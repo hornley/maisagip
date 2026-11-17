@@ -239,3 +239,24 @@ Covers the merge truth table (dedup across views, coverage, whole-ear defects, t
 ## Scope
 
 RGB images only; externally visible traits only (no moisture, sweetness, aflatoxin, etc.). Inspection assists post-harvest grading decisions and does not replace official PNS grading by authorized agencies.
+
+## Native Android app
+
+The `android/` module is a standalone Kotlin app. Inspection, model inference, and harvest history run on the device without a server or internet connection. The FastAPI service and Python workflows above remain available for web use, training, and evaluation.
+
+Build prerequisites: JDK 17, Android SDK Platform 35, and Android Build Tools 35.0.0. Model export also needs the packages in `requirements-ml.txt` and these checkpoints in `data/weights/` (they are not stored in Git): `best.pt`, `efficientnetv2_s_corn.pt`, and `yolo11s_colab_best_2026-10-08.pt`.
+
+Export the three local ONNX assets, then build the app:
+
+```bash
+python training/export_android_models.py \
+  --weights-dir data/weights \
+  --output-dir android/app/src/main/assets/models
+cd android
+./gradlew :app:assembleDebug
+./gradlew :app:bundleDebug
+```
+
+Gradle fails the build if any ONNX asset or the manifest is missing. The generated ONNX files are ignored by Git. The debug APK is at `android/app/build/outputs/apk/debug/app-debug.apk`; the Android App Bundle is at `android/app/build/outputs/bundle/debug/app-debug.aab`.
+
+Measured here: the three ONNX models total about 152 MiB; the universal debug APK is 252 MiB and the debug app bundle is 173 MiB. The APK includes native libraries for all supported CPU architectures. Device-specific download size and inspection speed still need an Android device to measure.
