@@ -8,3 +8,7 @@ data/detector/
 data/raw/
 data/reports/
 data/weights/
+android/.gradle/
+android/**/build/
+android/local.properties
+android/app/src/main/assets/models/*.onnx

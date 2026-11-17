@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "models": {
+    "segmenter": {
+      "input_name": "images",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_names": [
+        "output0",
+        "output1"
+      ],
+      "output_shapes": [
+        [
+          1,
+          37,
+          8400
+        ],
+        [
+          1,
+          32,
+          160,
+          160
+        ]
+      ],
+      "class_names": [
+        "corn-ear"
+      ],
+      "file": "corn_ear_segmenter.onnx",
+      "sha256": "cf6f589b34e0872ec89d5704c3cba7b74337b60a6235910d7b66cc903e19ffbe",
+      "input_size": 640,
+      "confidence_threshold": 0.25,
+      "nms_iou": 0.7
+    },
+    "classifier": {
+      "input_name": "images",
+      "input_shape": [
+        1,
+        3,
+        448,
+        448
+      ],
+      "output_names": [
+        "logits"
+      ],
+      "output_shapes": [
+        [
+          1,
+          2
+        ]
+      ],
+      "class_names": [
+        "white_corn",
+        "yellow_sweet_corn"
+      ],
+      "input_size": 448,
+      "resize_short_edge_scale": 1.1,
+      "center_crop": 448,
+      "mean": [
+        0.485,
+        0.456,
+        0.406
+      ],
+      "std": [
+        0.229,
+        0.224,
+        0.225
+      ],
+      "file": "corn_variety_classifier.onnx",
+      "sha256": "fd4554c5a1767a1e30a236d94ea7b920079cfefad2ff86a6aad442da2175e6b8"
+    },
+    "detector": {
+      "input_name": "images",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_names": [
+        "output0"
+      ],
+      "output_shapes": [
+        [
+          1,
+          12,
+          8400
+        ]
+      ],
+      "class_names": [
+        "corn_ear",
+        "mold",
+        "insect_damage",
+        "discoloration",
+        "deformity",
+        "missing_kernels",
+        "ear_decay",
+        "shriveled_kernels"
+      ],
+      "file": "corn_defect_detector.onnx",
+      "sha256": "eeef3a59418813cafd2f92f05cbcd0b4bf90be21f3ec2c3e90358aac596ffc9b",
+      "input_size": 640,
+      "confidence_threshold": 0.5,
+      "nms_iou": 0.7,
+      "canonical_class_names": [
+        "corn_ear",
+        "decay",
+        "insect_damage",
+        "discoloration",
+        "deformity",
+        "missing_kernels",
+        "decay",
+        "shriveled_kernels"
+      ]
+    }
+  }
+}
