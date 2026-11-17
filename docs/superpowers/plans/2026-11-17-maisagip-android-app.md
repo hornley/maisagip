@@ -14,7 +14,7 @@
 
 - The current repository has no Android module or ONNX exports. Source checkpoints are in `../t3-44db0360/data/weights/` and total about 116 MB before conversion; do not commit checkpoint files.
 - Export model files locally into Android assets. Measure each ONNX file and the resulting APK/AAB before choosing base-module packaging or an install-time asset pack. Installation must include all three models; inference must not download them.
-- Preserve the current Python behavior: RGB/EXIF image handling, classifier 448-pixel resize/crop and ImageNet normalization, YOLO input size 640, canonical defect class order, 0.50 default confidence, detector NMS IoU 0.7, view merging, trait calculations, `backend/app/rules/config_rules.json` grading/utilization thresholds, and `backend/app/recommendations.py` outlet eligibility. The segmenter uses class 0 (`corn_ear`) and confidence 0.25 from the existing multi-ear integration.
+- Preserve the current Python behavior: RGB/EXIF image handling, classifier 448-pixel resize/crop and ImageNet normalization, YOLO input size 640, 0.50 default confidence, detector NMS IoU 0.7, view merging, trait calculations, `backend/app/rules/config_rules.json` grading/utilization thresholds, and `backend/app/recommendations.py` outlet eligibility. The detector checkpoint outputs eight classes in its trained order (`corn_ear`, `mold`, `insect_damage`, `discoloration`, `deformity`, `missing_kernels`, `ear_decay`, `shriveled_kernels`); canonicalize both `mold` and `ear_decay` to `decay`, matching `backend/app/config.py`. The segmenter uses class 0 (`corn-ear`, canonical ear label `corn_ear`) and confidence 0.25 from the existing multi-ear integration.
 - The approved history scope is a date, ear total, and counts by grade only. Do not add the daily/weekly and per-defect breakdowns from related issue #2.
 - Never fall back to a demo model. If any required model is missing, malformed, or incompatible, show a clear blocking error.
 - Do not delete the current Python tools or edit unrelated dirty files. Stage only Android app files, the export tool, and this plan when committing.
@@ -71,7 +71,7 @@ Export these exact checkpoints: `best.pt` as YOLO11s-seg, `efficientnetv2_s_corn
 
 - [ ] **Step 2: Implement the exporter**
 
-Use Ultralytics ONNX export for the two YOLO checkpoints with 640-pixel fixed inputs and embedded NMS disabled so Kotlin can apply the same confidence/NMS rules. Build EfficientNetV2-S with the same two-output classifier head and export it with a 448-pixel input. Use static batch size 1 and an ONNX opset supported by ONNX Runtime Mobile. Fail with a path-specific error if any source checkpoint is missing. Write only the model contract and output metadata to the tracked `model_manifest.json`; the `.onnx` files remain local build inputs.
+Use Ultralytics ONNX export for the two YOLO checkpoints with 640-pixel fixed inputs and embedded NMS disabled so Kotlin can apply the same confidence/NMS rules. Build EfficientNetV2-S with the same two-output classifier head and export it with a 448-pixel input. Use static batch size 1 and an ONNX opset supported by ONNX Runtime Mobile. Fail with a path-specific error if any source checkpoint is missing. Write each model's trained class names/order, input contract, output metadata, and SHA-256 to the tracked `model_manifest.json`; the `.onnx` files remain local build inputs. Do not replace the detector checkpoint's eight-channel output order with the seven-label canonical reporting order.
 
 Command:
 
@@ -104,7 +104,7 @@ Decode JPEG/PNG/HEIC inputs to upright RGB pixels using Android EXIF metadata su
 
 - [ ] **Step 2: Implement classifier and detector postprocessing**
 
-Resize the masked ear crop to the EfficientNetV2-S 448-pixel training transform (resize to 1.1×, center crop, RGB float tensor, ImageNet mean/std normalization). Decode the two variety logits in the exact order `white_corn`, `yellow_sweet_corn`. Decode YOLO11s boxes into the configured canonical defect order, apply the default 0.50 threshold and 0.7 IoU NMS, and retain each detection's class, confidence, and original-image box.
+Resize the masked ear crop to the EfficientNetV2-S 448-pixel training transform (resize to 1.1×, center crop, RGB float tensor, ImageNet mean/std normalization). Decode the two variety logits in the exact order `white_corn`, `yellow_sweet_corn`. Decode the detector's eight output channels using the checkpoint's trained class order, then map both `mold` and `ear_decay` to `decay`; apply the default 0.50 threshold and 0.7 IoU NMS and retain each detection's canonical class, confidence, and original-image box.
 
 - [ ] **Step 3: Implement automatic routing and multi-view merge**
 
